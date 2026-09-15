@@ -11,6 +11,7 @@ import {
   autoMoveTarget,
   canAutoFinish,
   drawFromStock,
+  findHint,
   isDeadEnd,
   isWon,
   moveCard,
@@ -53,6 +54,11 @@ export default function SolitaireScreen() {
     resumed.current?.history ?? [],
   );
 
+  // Hint: card ids to briefly highlight, and whether to pulse the stock.
+  const [hintCardIds, setHintCardIds] = useState<Set<string>>(new Set());
+  const [hintStock, setHintStock] = useState(false);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [autoFinishing, setAutoFinishing] = useState(false);
   // Lets the player dismiss the "no moves" banner and keep trying the deal,
   // in case the detection is wrong or they just want to poke at it.
@@ -90,13 +96,16 @@ export default function SolitaireScreen() {
   }, [autoFinishEnabled, finishable, autoFinishing]);
 
   const reset = useCallback(() => {
-    // If we're abandoning an unfinished game that has no moves left, count it
-    // as a loss now (we don't record on detection, since the banner is
-    // dismissible and the player may keep trying). Read from the ref so this
-    // callback stays stable and never sees stale values.
+    // Count the game just played as a loss if it wasn't won and was actually
+    // started (at least one move, or a detected dead end). Abandoning a game
+    // you've begun — via "New" or the dead-end banner — is a loss; re-dealing
+    // a fresh board before making any move is not. Guard against
+    // double-recording. Read from the ref so this callback stays stable and
+    // never sees stale values.
     const { deadEnd: wasDeadEnd, won: hadWon, moves: playedMoves } =
       snapshot.current;
-    if (wasDeadEnd && !hadWon && !recordedResult.current) {
+    const startedAndUnfinished = !hadWon && (playedMoves > 0 || wasDeadEnd);
+    if (startedAndUnfinished && !recordedResult.current) {
       recordedResult.current = true;
       recordSolitaireResult({
         won: false,
@@ -114,6 +123,8 @@ export default function SolitaireScreen() {
     setDismissedDeadEnd(false);
     setFreshDeal(true);
     setHistory([]);
+    setHintCardIds(new Set());
+    setHintStock(false);
     startedAt.current = Date.now();
     recordedResult.current = false;
   }, []);
@@ -217,6 +228,49 @@ export default function SolitaireScreen() {
     });
   }, [autoFinishing]);
 
+  // Resolve the card id at a pile position (for highlighting a hinted card).
+  const cardIdAt = useCallback(
+    (pile: PileId, cardIndex: number): string | null => {
+      if (pile.kind === "waste") return state.waste[cardIndex]?.id ?? null;
+      if (pile.kind === "foundation")
+        return state.foundations[pile.index][cardIndex]?.id ?? null;
+      return state.tableau[pile.index][cardIndex]?.id ?? null;
+    },
+    [state],
+  );
+
+  const showHint = useCallback(() => {
+    if (autoFinishing) return;
+    const hint = findHint(state);
+
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    setHintCardIds(new Set());
+    setHintStock(false);
+
+    if (hint.kind === "move") {
+      const ids = new Set<string>();
+      const srcId = cardIdAt(hint.from, hint.cardIndex);
+      if (srcId) ids.add(srcId);
+      // Highlight the destination's current top card too, if any.
+      if (hint.to.kind === "tableau") {
+        const col = state.tableau[hint.to.index];
+        if (col.length > 0) ids.add(col[col.length - 1].id);
+      } else if (hint.to.kind === "foundation") {
+        const f = state.foundations[hint.to.index];
+        if (f.length > 0) ids.add(f[f.length - 1].id);
+      }
+      setHintCardIds(ids);
+    } else if (hint.kind === "draw") {
+      setHintStock(true);
+    }
+    // hint.kind === "none": nothing to show (dead end / no move).
+
+    hintTimer.current = setTimeout(() => {
+      setHintCardIds(new Set());
+      setHintStock(false);
+    }, 1600);
+  }, [autoFinishing, state, cardIdAt]);
+
   // Tap logic: if nothing selected, try auto-move; if that fails, select.
   // If something selected, treat the new tap as a destination.
   const tapCard = useCallback(
@@ -278,6 +332,14 @@ export default function SolitaireScreen() {
         <span className="status-line">{moves} moves</span>
         <button
           className="icon-btn"
+          onClick={showHint}
+          disabled={autoFinishing || won || deadEnd}
+          aria-label="Show a hint"
+        >
+          Hint
+        </button>
+        <button
+          className="icon-btn"
           onClick={undo}
           disabled={history.length === 0 || autoFinishing || won}
           aria-label="Undo last move"
@@ -337,7 +399,7 @@ export default function SolitaireScreen() {
         <div className="top-row">
           <div className="stock-waste">
             <div
-              className="pile stock"
+              className={`pile stock ${hintStock ? "hint-stock" : ""}`}
               onClick={handleStock}
               role="button"
               aria-label="Draw from stock"
@@ -379,6 +441,7 @@ export default function SolitaireScreen() {
                         card={card}
                         animate
                         entrance
+                        hinted={hintCardIds.has(card.id)}
                         className="waste-card"
                         style={{ left: `${i * WASTE_FAN_OFFSET}px` }}
                         selected={
@@ -414,6 +477,7 @@ export default function SolitaireScreen() {
                     <PlayingCard
                       card={pile[pile.length - 1]}
                       animate
+                      hinted={hintCardIds.has(pile[pile.length - 1].id)}
                       selected={isSelected(to, pile.length - 1)}
                       onClick={() => tapCard(to, pile.length - 1)}
                     />
@@ -457,6 +521,7 @@ export default function SolitaireScreen() {
                     }
                     className="stacked"
                     style={{ top: `${offsetForIndex(column, cardIndex)}px` }}
+                    hinted={hintCardIds.has(card.id)}
                     selected={isSelected(to, cardIndex)}
                     onClick={
                       card.faceUp ? () => tapCard(to, cardIndex) : undefined
