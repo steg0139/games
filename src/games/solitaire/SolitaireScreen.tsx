@@ -40,17 +40,23 @@ export default function SolitaireScreen() {
   const recordedResult = useRef(false);
 
   const [autoFinishing, setAutoFinishing] = useState(false);
+  // Lets the player dismiss the "no moves" banner and keep trying the deal,
+  // in case the detection is wrong or they just want to poke at it.
+  const [dismissedDeadEnd, setDismissedDeadEnd] = useState(false);
 
   const profile = useProfile();
   const drawCount = profile.settings.solitaireDrawCount;
   const autoFinishEnabled = profile.settings.solitaireAutoFinish;
 
   const won = useMemo(() => isWon(state), [state]);
-  // Only treat as lost once the deal-in is done and we're not mid auto-finish.
-  const lost = useMemo(
+  // Detected dead end (not while auto-finishing). This does NOT count as a
+  // loss on its own — the banner is dismissible; a loss is only recorded if
+  // the player starts a new game from an unfinished dead-end board.
+  const deadEnd = useMemo(
     () => !autoFinishing && isDeadEnd(state),
     [state, autoFinishing],
   );
+  const showLossBanner = deadEnd && !dismissedDeadEnd;
   const finishable = useMemo(() => canAutoFinish(state), [state]);
   // With auto-finish enabled, it runs on its own — no button. With it off,
   // offer the manual button when the board is finishable.
@@ -65,14 +71,26 @@ export default function SolitaireScreen() {
   }, [autoFinishEnabled, finishable, autoFinishing]);
 
   const reset = useCallback(() => {
+    // If we're abandoning an unfinished game that has no moves left, count it
+    // as a loss now (we don't record on detection, since the banner is
+    // dismissible and the player may keep trying).
+    if (deadEnd && !won && !recordedResult.current) {
+      recordedResult.current = true;
+      recordSolitaireResult({
+        won: false,
+        moves,
+        timeSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+      });
+    }
     setState(newGame());
     setSelection(null);
     setMoves(0);
     setDealId((n) => n + 1);
     setAutoFinishing(false);
+    setDismissedDeadEnd(false);
     startedAt.current = Date.now();
     recordedResult.current = false;
-  }, []);
+  }, [deadEnd, won, moves]);
 
   // Auto-finish: once started, step the next card to a foundation on an
   // interval so the cards visibly fly home. Stops when there are no more
@@ -107,17 +125,19 @@ export default function SolitaireScreen() {
     }
   }, [drawCount, reset]);
 
-  // Record the result (win or loss) exactly once when the game ends.
+  // Record a win exactly once when the board is completed. (A loss is recorded
+  // on new game from a dead-end board — see reset — so a dismissible banner
+  // never prematurely counts a loss.)
   useEffect(() => {
-    if ((won || lost) && !recordedResult.current) {
+    if (won && !recordedResult.current) {
       recordedResult.current = true;
       recordSolitaireResult({
-        won,
+        won: true,
         moves,
         timeSeconds: Math.round((Date.now() - startedAt.current) / 1000),
       });
     }
-  }, [won, lost, moves]);
+  }, [won, moves]);
 
   const applyMove = useCallback(
     (from: PileId, cardIndex: number, to: PileId) => {
@@ -125,6 +145,9 @@ export default function SolitaireScreen() {
       if (next) {
         setState(next);
         setMoves((m) => m + 1);
+        // A successful move changes the board; re-arm the dead-end banner so
+        // it can reappear if the player gets stuck again.
+        setDismissedDeadEnd(false);
       }
       setSelection(null);
     },
@@ -225,11 +248,19 @@ export default function SolitaireScreen() {
           </div>
         )}
 
-        {lost && (
-          <div className="win-banner">
-            <div className="win-card">
-              <h2>No moves left</h2>
-              <p>This game can't be won. Try another deal.</p>
+        {showLossBanner && (
+          <div className="deadend-banner" role="status">
+            <div className="deadend-text">
+              <strong>No moves left</strong>
+              <span>This deal looks unwinnable.</span>
+            </div>
+            <div className="deadend-actions">
+              <button
+                className="icon-btn"
+                onClick={() => setDismissedDeadEnd(true)}
+              >
+                Keep trying
+              </button>
               <button className="btn-primary" onClick={reset}>
                 New game
               </button>
