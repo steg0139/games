@@ -11,6 +11,7 @@ import {
   autoMoveTarget,
   canAutoFinish,
   drawFromStock,
+  isDeadEnd,
   isWon,
   moveCard,
   newGame,
@@ -36,7 +37,7 @@ export default function SolitaireScreen() {
   // Bumped on every new game so the deal-in animation replays.
   const [dealId, setDealId] = useState(0);
   const startedAt = useRef<number>(Date.now());
-  const recordedWin = useRef(false);
+  const recordedResult = useRef(false);
 
   const [autoFinishing, setAutoFinishing] = useState(false);
 
@@ -45,6 +46,11 @@ export default function SolitaireScreen() {
   const autoFinishEnabled = profile.settings.solitaireAutoFinish;
 
   const won = useMemo(() => isWon(state), [state]);
+  // Only treat as lost once the deal-in is done and we're not mid auto-finish.
+  const lost = useMemo(
+    () => !autoFinishing && isDeadEnd(state),
+    [state, autoFinishing],
+  );
   const finishable = useMemo(() => canAutoFinish(state), [state]);
   // With auto-finish enabled, it runs on its own — no button. With it off,
   // offer the manual button when the board is finishable.
@@ -65,7 +71,7 @@ export default function SolitaireScreen() {
     setDealId((n) => n + 1);
     setAutoFinishing(false);
     startedAt.current = Date.now();
-    recordedWin.current = false;
+    recordedResult.current = false;
   }, []);
 
   // Auto-finish: once started, step the next card to a foundation on an
@@ -101,17 +107,17 @@ export default function SolitaireScreen() {
     }
   }, [drawCount, reset]);
 
-  // Record the win exactly once when the board is completed.
+  // Record the result (win or loss) exactly once when the game ends.
   useEffect(() => {
-    if (won && !recordedWin.current) {
-      recordedWin.current = true;
+    if ((won || lost) && !recordedResult.current) {
+      recordedResult.current = true;
       recordSolitaireResult({
-        won: true,
+        won,
         moves,
         timeSeconds: Math.round((Date.now() - startedAt.current) / 1000),
       });
     }
-  }, [won, moves]);
+  }, [won, lost, moves]);
 
   const applyMove = useCallback(
     (from: PileId, cardIndex: number, to: PileId) => {
@@ -214,6 +220,18 @@ export default function SolitaireScreen() {
               <p>Cleared in {moves} moves.</p>
               <button className="btn-primary" onClick={reset}>
                 Play again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {lost && (
+          <div className="win-banner">
+            <div className="win-card">
+              <h2>No moves left</h2>
+              <p>This game can't be won. Try another deal.</p>
+              <button className="btn-primary" onClick={reset}>
+                New game
               </button>
             </div>
           </div>

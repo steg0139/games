@@ -285,3 +285,77 @@ export function nextFoundationMove(
 
   return null;
 }
+
+/** Can `card` legally land on any foundation? */
+function cardFitsAnyFoundation(card: Card, state: SolitaireState): boolean {
+  for (let i = 0; i < 4; i++) {
+    if (canStackOnFoundation(card, state.foundations[i], SUIT_ORDER[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Can `card` legally land on any tableau column? `fromColumn` (if given) is
+ * excluded so "moving within the same column" doesn't count as a move.
+ */
+function cardFitsAnyTableau(
+  card: Card,
+  state: SolitaireState,
+  fromColumn?: number,
+): boolean {
+  for (let i = 0; i < 7; i++) {
+    if (i === fromColumn) continue;
+    const col = state.tableau[i];
+    if (canStackOnTableau(card, col[col.length - 1])) return true;
+  }
+  return false;
+}
+
+/**
+ * True if the position has at least one legal move available now or reachable
+ * by cycling the stock. Because drawing only changes which card is available
+ * (never the tableau/foundations), every stock and waste card is eventually
+ * playable as a "top", so it's sufficient to test each of them against the
+ * current board — no draw-by-draw simulation needed. Assumes unlimited redeals.
+ */
+export function hasAnyMove(state: SolitaireState): boolean {
+  // 1. Tableau moves: any valid face-up run whose head can go to a foundation
+  //    (single card only) or onto another tableau column (incl. King -> empty).
+  for (let c = 0; c < 7; c++) {
+    const col = state.tableau[c];
+    for (let r = 0; r < col.length; r++) {
+      if (!col[r].faceUp) continue;
+      const run = faceUpRunFrom(col, r);
+      if (!run) continue;
+      const head = run[0];
+
+      // Single card to a foundation is always genuine progress.
+      if (run.length === 1 && cardFitsAnyFoundation(head, state)) return true;
+
+      // Move onto another tableau column. Exclude the no-op of relocating a
+      // King that already owns an otherwise-empty column to another empty
+      // column (shuffling between empty spots isn't progress).
+      const kingOwnsWholeColumn = run.length === col.length && head.rank === "K";
+      if (!kingOwnsWholeColumn && cardFitsAnyTableau(head, state, c)) {
+        return true;
+      }
+    }
+  }
+
+  // 2. Any stock or waste card can be surfaced by drawing; if any of them can
+  //    land on a foundation or tableau, the game can still progress.
+  for (const card of [...state.stock, ...state.waste]) {
+    if (cardFitsAnyFoundation(card, state)) return true;
+    if (cardFitsAnyTableau(card, state)) return true;
+  }
+
+  return false;
+}
+
+/** True when the game is lost: not won, and no move is available or reachable. */
+export function isDeadEnd(state: SolitaireState): boolean {
+  if (isWon(state)) return false;
+  return !hasAnyMove(state);
+}
