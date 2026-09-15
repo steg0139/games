@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { LayoutGroup } from "framer-motion";
 import PlayingCard from "../../components/PlayingCard";
 import { suitSymbol } from "../../lib/cards";
-import { recordSolitaireResult } from "../../lib/stats/useProfile";
+import { recordSolitaireResult, useProfile } from "../../lib/stats/useProfile";
 import {
   type PileId,
   type SolitaireState,
@@ -36,6 +36,9 @@ export default function SolitaireScreen() {
   const startedAt = useRef<number>(Date.now());
   const recordedWin = useRef(false);
 
+  const profile = useProfile();
+  const drawCount = profile.settings.solitaireDrawCount;
+
   const won = useMemo(() => isWon(state), [state]);
 
   const reset = useCallback(() => {
@@ -46,6 +49,15 @@ export default function SolitaireScreen() {
     startedAt.current = Date.now();
     recordedWin.current = false;
   }, []);
+
+  // Changing the draw mode can't apply mid-game, so start a fresh deal.
+  const prevDrawCount = useRef(drawCount);
+  useEffect(() => {
+    if (prevDrawCount.current !== drawCount) {
+      prevDrawCount.current = drawCount;
+      reset();
+    }
+  }, [drawCount, reset]);
 
   // Record the win exactly once when the board is completed.
   useEffect(() => {
@@ -72,9 +84,9 @@ export default function SolitaireScreen() {
   );
 
   const handleStock = useCallback(() => {
-    setState((s) => drawFromStock(s));
+    setState((s) => drawFromStock(s, drawCount));
     setSelection(null);
-  }, []);
+  }, [drawCount]);
 
   // Tap logic: if nothing selected, try auto-move; if that fails, select.
   // If something selected, treat the new tap as a destination.
@@ -174,8 +186,12 @@ export default function SolitaireScreen() {
             <div className="pile waste">
               {state.waste.length > 0 ? (
                 (() => {
-                  // Fan the top few waste cards; only the topmost is playable.
-                  const fanCount = Math.min(WASTE_FAN, state.waste.length);
+                  // Fan up to `drawCount` waste cards; only the top is playable.
+                  const fanCount = Math.min(
+                    WASTE_FAN,
+                    drawCount,
+                    state.waste.length,
+                  );
                   const startIndex = state.waste.length - fanCount;
                   return state.waste.slice(startIndex).map((card, i) => {
                     const cardIndex = startIndex + i;

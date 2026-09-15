@@ -1,6 +1,11 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { profileStore } from "./store";
-import type { Profile, Settings } from "./types";
+import {
+  type Profile,
+  type Settings,
+  emptyBlackjackStats,
+  emptySolitaireStats,
+} from "./types";
 
 /** Subscribe a component to the live profile. */
 export function useProfile(): Profile {
@@ -24,6 +29,21 @@ export function updateSettings(patch: Partial<Settings>): void {
 /** Reset all stats and settings to defaults (local + cloud). */
 export function clearProfile(): Promise<void> {
   return profileStore.clear();
+}
+
+export type GameKey = "solitaire" | "blackjack";
+
+/**
+ * Reset stats for a single game, keeping the other game's stats and all
+ * settings. Persists locally and syncs the change to the cloud (no full
+ * delete needed since the rest of the profile stays).
+ */
+export function resetGameStats(game: GameKey): void {
+  profileStore.update((p) =>
+    game === "solitaire"
+      ? { ...p, solitaire: emptySolitaireStats() }
+      : { ...p, blackjack: emptyBlackjackStats() },
+  );
 }
 
 // ---- Game stat recorders -------------------------------------------------

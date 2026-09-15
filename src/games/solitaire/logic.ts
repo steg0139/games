@@ -54,11 +54,14 @@ export function newGame(): SolitaireState {
 export const DRAW_COUNT = 3;
 
 /**
- * Draw up to DRAW_COUNT cards from the stock to the waste (fewer if the stock
- * is nearly empty). If the stock is empty, recycle the waste back into it.
- * Only the top waste card is ever playable.
+ * Draw up to `count` cards from the stock to the waste (fewer if the stock is
+ * nearly empty). Defaults to DRAW_COUNT (3). If the stock is empty, recycle
+ * the waste back into it. Only the top waste card is ever playable.
  */
-export function drawFromStock(state: SolitaireState): SolitaireState {
+export function drawFromStock(
+  state: SolitaireState,
+  count: number = DRAW_COUNT,
+): SolitaireState {
   if (state.stock.length === 0) {
     if (state.waste.length === 0) return state;
     // recycle: waste back to stock, face down, order reset
@@ -68,7 +71,7 @@ export function drawFromStock(state: SolitaireState): SolitaireState {
 
   const stock = state.stock.slice();
   const drawn: Card[] = [];
-  for (let i = 0; i < DRAW_COUNT && stock.length > 0; i++) {
+  for (let i = 0; i < count && stock.length > 0; i++) {
     drawn.push({ ...stock.pop()!, faceUp: true });
   }
   return { ...state, stock, waste: [...state.waste, ...drawn] };

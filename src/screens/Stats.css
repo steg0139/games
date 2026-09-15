@@ -152,3 +152,69 @@
 .confirm-row .icon-btn {
   margin-top: 0;
 }
+
+.setting-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Segmented control (draw mode) */
+.segmented {
+  display: flex;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 3px;
+}
+
+.segment {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.segment.active {
+  background: var(--accent-strong);
+  color: #04202e;
+}
+
+/* Per-game reset */
+.game-reset {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.link-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-btn:active {
+  color: var(--text);
+}
+
+.btn-danger.sm {
+  margin-top: 0;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.game-reset .confirm-row {
+  margin-top: 0;
+  flex-wrap: wrap;
+}

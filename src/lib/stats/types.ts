@@ -19,8 +19,12 @@ export interface BlackjackStats {
   bestBankroll: number;
 }
 
+/** Solitaire draw mode: flip 1 or 3 cards from the stock per draw. */
+export type DrawCount = 1 | 3;
+
 export interface Settings {
   soundEnabled: boolean;
+  solitaireDrawCount: DrawCount;
 }
 
 export interface Profile {
@@ -58,7 +62,7 @@ export function emptyBlackjackStats(): BlackjackStats {
 export function defaultProfile(): Profile {
   return {
     version: PROFILE_VERSION,
-    settings: { soundEnabled: true },
+    settings: { soundEnabled: true, solitaireDrawCount: 3 },
     solitaire: emptySolitaireStats(),
     blackjack: emptyBlackjackStats(),
     updatedAt: 0,

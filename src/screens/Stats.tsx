@@ -2,7 +2,14 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CLOUD_SYNC_ENABLED } from "../lib/config";
 import { getDeviceId } from "../lib/device";
-import { clearProfile, updateSettings, useProfile } from "../lib/stats/useProfile";
+import {
+  type GameKey,
+  clearProfile,
+  resetGameStats,
+  updateSettings,
+  useProfile,
+} from "../lib/stats/useProfile";
+import type { DrawCount } from "../lib/stats/types";
 import "./Stats.css";
 
 function pct(n: number, d: number): string {
@@ -17,6 +24,41 @@ function fmtTime(seconds: number | null): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+function GameResetControl({
+  game,
+  confirming,
+  onAsk,
+  onCancel,
+  onConfirm,
+}: {
+  game: GameKey;
+  confirming: boolean;
+  onAsk: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const label = game === "solitaire" ? "Solitaire" : "Blackjack";
+  return (
+    <div className="game-reset">
+      {!confirming ? (
+        <button className="link-btn" onClick={onAsk}>
+          Reset {label} stats
+        </button>
+      ) : (
+        <div className="confirm-row">
+          <span className="sync-note">Reset {label} stats?</span>
+          <button className="btn-danger sm" onClick={onConfirm}>
+            Reset
+          </button>
+          <button className="icon-btn" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Stats() {
   const profile = useProfile();
   const s = profile.solitaire;
@@ -24,6 +66,8 @@ export default function Stats() {
 
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
+  // Which game's per-game reset is awaiting confirmation, if any.
+  const [confirmingGame, setConfirmingGame] = useState<GameKey | null>(null);
 
   const handleClear = async () => {
     setClearing(true);
@@ -34,6 +78,13 @@ export default function Stats() {
       setConfirming(false);
     }
   };
+
+  const handleResetGame = (game: GameKey) => {
+    resetGameStats(game);
+    setConfirmingGame(null);
+  };
+
+  const drawCount = profile.settings.solitaireDrawCount;
 
   return (
     <div className="stats">
@@ -73,6 +124,13 @@ export default function Stats() {
               <div className="label">Games played</div>
             </div>
           </div>
+          <GameResetControl
+            game="solitaire"
+            confirming={confirmingGame === "solitaire"}
+            onAsk={() => setConfirmingGame("solitaire")}
+            onCancel={() => setConfirmingGame(null)}
+            onConfirm={() => handleResetGame("solitaire")}
+          />
         </section>
 
         <section className="stats-section">
@@ -103,6 +161,13 @@ export default function Stats() {
               <div className="label">Hands played</div>
             </div>
           </div>
+          <GameResetControl
+            game="blackjack"
+            confirming={confirmingGame === "blackjack"}
+            onAsk={() => setConfirmingGame("blackjack")}
+            onCancel={() => setConfirmingGame(null)}
+            onConfirm={() => handleResetGame("blackjack")}
+          />
         </section>
 
         <section className="stats-section">
@@ -119,6 +184,28 @@ export default function Stats() {
               }
             />
           </div>
+
+          <div className="setting-row">
+            <div>
+              <span className="label">Solitaire draw</span>
+              <div className="setting-hint">Cards flipped from the stock</div>
+            </div>
+            <div className="segmented" role="group" aria-label="Solitaire draw mode">
+              {([1, 3] as DrawCount[]).map((n) => (
+                <button
+                  key={n}
+                  className={`segment ${drawCount === n ? "active" : ""}`}
+                  aria-pressed={drawCount === n}
+                  onClick={() => updateSettings({ solitaireDrawCount: n })}
+                >
+                  Draw {n}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="sync-note">
+            Changing the draw mode starts a new Solitaire game.
+          </p>
         </section>
 
         <section className="stats-section">
