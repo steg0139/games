@@ -5,6 +5,7 @@ import {
   type Settings,
   emptyBlackjackStats,
   emptySolitaireStats,
+  emptyVideoPokerStats,
 } from "./types";
 
 /** Subscribe a component to the live profile. */
@@ -31,19 +32,19 @@ export function clearProfile(): Promise<void> {
   return profileStore.clear();
 }
 
-export type GameKey = "solitaire" | "blackjack";
+export type GameKey = "solitaire" | "blackjack" | "videopoker";
 
 /**
- * Reset stats for a single game, keeping the other game's stats and all
+ * Reset stats for a single game, keeping the other games' stats and all
  * settings. Persists locally and syncs the change to the cloud (no full
  * delete needed since the rest of the profile stays).
  */
 export function resetGameStats(game: GameKey): void {
-  profileStore.update((p) =>
-    game === "solitaire"
-      ? { ...p, solitaire: emptySolitaireStats() }
-      : { ...p, blackjack: emptyBlackjackStats() },
-  );
+  profileStore.update((p) => {
+    if (game === "solitaire") return { ...p, solitaire: emptySolitaireStats() };
+    if (game === "blackjack") return { ...p, blackjack: emptyBlackjackStats() };
+    return { ...p, videopoker: emptyVideoPokerStats() };
+  });
 }
 
 // ---- Game stat recorders -------------------------------------------------
@@ -88,5 +89,20 @@ export function recordBlackjackHand(result: BlackjackResult, bankroll: number): 
     }
     b.bestBankroll = Math.max(b.bestBankroll, bankroll);
     return { ...p, blackjack: b };
+  });
+}
+
+export function recordVideoPokerHand(result: {
+  paid: boolean;
+  payout: number;
+  bankroll: number;
+}): void {
+  profileStore.update((p) => {
+    const v = { ...p.videopoker };
+    v.handsPlayed += 1;
+    if (result.paid) v.handsPaid += 1;
+    v.bestPayout = Math.max(v.bestPayout, result.payout);
+    v.bestBankroll = Math.max(v.bestBankroll, result.bankroll);
+    return { ...p, videopoker: v };
   });
 }

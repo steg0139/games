@@ -21,6 +21,12 @@ const GAMES: GameEntry[] = [
     blurb: "Beat the dealer to 21 without going bust.",
     suits: "♦ ♣",
   },
+  {
+    to: "/videopoker",
+    title: "Video Poker",
+    blurb: "Jacks or Better. Hold, draw, and hit a paying hand.",
+    suits: "♣ ♠",
+  },
 ];
 
 export default function Home() {

@@ -63,6 +63,7 @@ export default function Stats() {
   const profile = useProfile();
   const s = profile.solitaire;
   const b = profile.blackjack;
+  const v = profile.videopoker;
 
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -167,6 +168,35 @@ export default function Stats() {
             onAsk={() => setConfirmingGame("blackjack")}
             onCancel={() => setConfirmingGame(null)}
             onConfirm={() => handleResetGame("blackjack")}
+          />
+        </section>
+
+        <section className="stats-section">
+          <h2>♣ Video Poker</h2>
+          <div className="stat-grid">
+            <div className="stat">
+              <div className="value">{pct(v.handsPaid, v.handsPlayed)}</div>
+              <div className="label">Hands paid</div>
+            </div>
+            <div className="stat">
+              <div className="value">${v.bestPayout}</div>
+              <div className="label">Best payout</div>
+            </div>
+            <div className="stat">
+              <div className="value">${v.bestBankroll}</div>
+              <div className="label">Best bankroll</div>
+            </div>
+            <div className="stat">
+              <div className="value">{v.handsPlayed}</div>
+              <div className="label">Hands played</div>
+            </div>
+          </div>
+          <GameResetControl
+            game="videopoker"
+            confirming={confirmingGame === "videopoker"}
+            onAsk={() => setConfirmingGame("videopoker")}
+            onCancel={() => setConfirmingGame(null)}
+            onConfirm={() => handleResetGame("videopoker")}
           />
         </section>
 

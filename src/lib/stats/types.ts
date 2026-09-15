@@ -19,6 +19,13 @@ export interface BlackjackStats {
   bestBankroll: number;
 }
 
+export interface VideoPokerStats {
+  handsPlayed: number;
+  handsPaid: number; // hands that returned a payout
+  bestBankroll: number;
+  bestPayout: number; // largest single-hand payout
+}
+
 /** Solitaire draw mode: flip 1 or 3 cards from the stock per draw. */
 export type DrawCount = 1 | 3;
 
@@ -34,6 +41,7 @@ export interface Profile {
   settings: Settings;
   solitaire: SolitaireStats;
   blackjack: BlackjackStats;
+  videopoker: VideoPokerStats;
   updatedAt: number; // epoch ms of last local mutation
 }
 
@@ -61,6 +69,15 @@ export function emptyBlackjackStats(): BlackjackStats {
   };
 }
 
+export function emptyVideoPokerStats(): VideoPokerStats {
+  return {
+    handsPlayed: 0,
+    handsPaid: 0,
+    bestBankroll: 0,
+    bestPayout: 0,
+  };
+}
+
 export function defaultProfile(): Profile {
   return {
     version: PROFILE_VERSION,
@@ -71,6 +88,7 @@ export function defaultProfile(): Profile {
     },
     solitaire: emptySolitaireStats(),
     blackjack: emptyBlackjackStats(),
+    videopoker: emptyVideoPokerStats(),
     updatedAt: 0,
   };
 }

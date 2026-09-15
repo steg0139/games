@@ -31,6 +31,7 @@ function readLocal(): Profile {
       settings: { ...defaultProfile().settings, ...parsed.settings },
       solitaire: { ...defaultProfile().solitaire, ...parsed.solitaire },
       blackjack: { ...defaultProfile().blackjack, ...parsed.blackjack },
+      videopoker: { ...defaultProfile().videopoker, ...parsed.videopoker },
     };
   } catch {
     return defaultProfile();

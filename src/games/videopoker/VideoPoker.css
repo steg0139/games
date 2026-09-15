@@ -1,0 +1,129 @@
+.videopoker {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.vp-felt {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: radial-gradient(
+    120% 100% at 50% 30%,
+    var(--felt) 0%,
+    var(--felt-edge) 100%
+  );
+  padding: 18px 14px;
+}
+
+/* Paytable */
+.paytable {
+  width: 100%;
+  max-width: 340px;
+  background: rgba(2, 6, 23, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.paytable-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 14px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.paytable-row:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.paytable-row.hit {
+  background: var(--accent-strong);
+  color: #04202e;
+  font-weight: 700;
+}
+
+.pt-mult {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Message */
+.vp-message {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+}
+
+.vp-badge {
+  background: rgba(2, 6, 23, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.vp-badge.win {
+  background: var(--accent-strong);
+  color: #04202e;
+  border-color: transparent;
+}
+
+.turn-hint {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+/* Hand */
+.vp-hand {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+
+  --card-w: min(18vw, 74px);
+  --card-h: calc(var(--card-w) * 1.4);
+}
+
+.vp-card-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.vp-slot {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 8px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.3);
+}
+
+/* Held card highlight */
+.vp-card-wrap .card-outer.held {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.held-tag {
+  position: absolute;
+  bottom: -10px;
+  background: var(--accent-strong);
+  color: #04202e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.vp-controls {
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  padding: 16px 16px calc(var(--safe-bottom) + 16px);
+}
