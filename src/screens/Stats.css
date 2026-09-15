@@ -196,7 +196,7 @@
   appearance: none;
   border: none;
   background: none;
-  color: var(--text-muted);
+  color: #f87171;
   font-size: 13px;
   font-weight: 600;
   padding: 4px 0;
@@ -205,7 +205,7 @@
 }
 
 .link-btn:active {
-  color: var(--text);
+  color: #fca5a5;
 }
 
 .btn-danger.sm {
