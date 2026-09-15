@@ -57,6 +57,11 @@ export default function SolitaireScreen() {
     [state, autoFinishing],
   );
   const showLossBanner = deadEnd && !dismissedDeadEnd;
+
+  // Keep the latest game snapshot in a ref so `reset` can decide whether to
+  // record a loss without depending on (and being recreated by) render state.
+  const snapshot = useRef({ deadEnd, won, moves });
+  snapshot.current = { deadEnd, won, moves };
   const finishable = useMemo(() => canAutoFinish(state), [state]);
   // With auto-finish enabled, it runs on its own — no button. With it off,
   // offer the manual button when the board is finishable.
@@ -73,12 +78,15 @@ export default function SolitaireScreen() {
   const reset = useCallback(() => {
     // If we're abandoning an unfinished game that has no moves left, count it
     // as a loss now (we don't record on detection, since the banner is
-    // dismissible and the player may keep trying).
-    if (deadEnd && !won && !recordedResult.current) {
+    // dismissible and the player may keep trying). Read from the ref so this
+    // callback stays stable and never sees stale values.
+    const { deadEnd: wasDeadEnd, won: hadWon, moves: playedMoves } =
+      snapshot.current;
+    if (wasDeadEnd && !hadWon && !recordedResult.current) {
       recordedResult.current = true;
       recordSolitaireResult({
         won: false,
-        moves,
+        moves: playedMoves,
         timeSeconds: Math.round((Date.now() - startedAt.current) / 1000),
       });
     }
@@ -90,7 +98,7 @@ export default function SolitaireScreen() {
     setDismissedDeadEnd(false);
     startedAt.current = Date.now();
     recordedResult.current = false;
-  }, [deadEnd, won, moves]);
+  }, []);
 
   // Auto-finish: once started, step the next card to a foundation on an
   // interval so the cards visibly fly home. Stops when there are no more
