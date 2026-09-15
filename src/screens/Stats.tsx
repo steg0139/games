@@ -206,6 +206,26 @@ export default function Stats() {
           <p className="sync-note">
             Changing the draw mode starts a new Solitaire game.
           </p>
+
+          <div className="setting-row">
+            <div>
+              <span className="label">Auto-finish Solitaire</span>
+              <div className="setting-hint">
+                Complete the game automatically once a win is guaranteed
+              </div>
+            </div>
+            <button
+              className="toggle"
+              role="switch"
+              aria-checked={profile.settings.solitaireAutoFinish}
+              aria-label="Toggle auto-finish"
+              onClick={() =>
+                updateSettings({
+                  solitaireAutoFinish: !profile.settings.solitaireAutoFinish,
+                })
+              }
+            />
+          </div>
         </section>
 
         <section className="stats-section">

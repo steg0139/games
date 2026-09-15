@@ -42,12 +42,21 @@ export default function SolitaireScreen() {
 
   const profile = useProfile();
   const drawCount = profile.settings.solitaireDrawCount;
+  const autoFinishEnabled = profile.settings.solitaireAutoFinish;
 
   const won = useMemo(() => isWon(state), [state]);
-  const showAutoFinish = useMemo(
-    () => canAutoFinish(state) && !autoFinishing,
-    [state, autoFinishing],
-  );
+  const finishable = useMemo(() => canAutoFinish(state), [state]);
+  // With auto-finish enabled, it runs on its own — no button. With it off,
+  // offer the manual button when the board is finishable.
+  const showAutoFinish = finishable && !autoFinishing && !autoFinishEnabled;
+
+  // Auto-trigger the finish when the setting is on and the board is winnable.
+  useEffect(() => {
+    if (autoFinishEnabled && finishable && !autoFinishing) {
+      setSelection(null);
+      setAutoFinishing(true);
+    }
+  }, [autoFinishEnabled, finishable, autoFinishing]);
 
   const reset = useCallback(() => {
     setState(newGame());

@@ -25,6 +25,8 @@ export type DrawCount = 1 | 3;
 export interface Settings {
   soundEnabled: boolean;
   solitaireDrawCount: DrawCount;
+  /** Automatically complete the game once a win is guaranteed. */
+  solitaireAutoFinish: boolean;
 }
 
 export interface Profile {
@@ -62,7 +64,11 @@ export function emptyBlackjackStats(): BlackjackStats {
 export function defaultProfile(): Profile {
   return {
     version: PROFILE_VERSION,
-    settings: { soundEnabled: true, solitaireDrawCount: 3 },
+    settings: {
+      soundEnabled: true,
+      solitaireDrawCount: 3,
+      solitaireAutoFinish: true,
+    },
     solitaire: emptySolitaireStats(),
     blackjack: emptyBlackjackStats(),
     updatedAt: 0,

@@ -66,6 +66,11 @@ export default function PlayingCard({
     ? {
         layout: true as const,
         ...(resolvedLayoutId ? { layoutId: resolvedLayoutId } : {}),
+        // Without an entrance, force first mount to be treated as a
+        // shared-layout follow (FLIP) rather than an enter. This is what makes
+        // a card arriving on a foundation (which renders only its top card)
+        // tween from its source pile instead of teleporting.
+        ...(entrance ? {} : { initial: false as const }),
       }
     : {};
 
