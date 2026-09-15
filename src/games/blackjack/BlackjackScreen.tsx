@@ -9,8 +9,10 @@ import {
   type BlackjackState,
   type Outcome,
   STARTING_BANKROLL,
+  canDouble,
   canSplit,
   deal,
+  double,
   handValue,
   hit,
   newGame,
@@ -73,6 +75,7 @@ export default function BlackjackScreen() {
   const doHit = useCallback(() => setState((s) => hit(s)), []);
   const doStand = useCallback(() => setState((s) => stand(s)), []);
   const doSplit = useCallback(() => setState((s) => split(s)), []);
+  const doDouble = useCallback(() => setState((s) => double(s)), []);
   const continueGame = useCallback(() => setState((s) => nextRound(s)), []);
   const restart = useCallback(() => {
     clearBankroll();
@@ -86,6 +89,7 @@ export default function BlackjackScreen() {
 
   const broke = state.phase === "betting" && state.bankroll < 5;
   const splittable = canSplit(state);
+  const doublable = canDouble(state);
   const multiHand = state.hands.length > 1;
 
   return (
@@ -230,6 +234,11 @@ export default function BlackjackScreen() {
             <button className="icon-btn wide" onClick={doStand}>
               Stand
             </button>
+            {doublable && (
+              <button className="icon-btn wide" onClick={doDouble}>
+                Double
+              </button>
+            )}
             {splittable && (
               <button className="icon-btn wide" onClick={doSplit}>
                 Split

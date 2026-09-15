@@ -196,6 +196,42 @@ export function split(state: BlackjackState): BlackjackState {
   return maybeAutoAdvance(next);
 }
 
+/**
+ * Can the active hand double down? Standard rule: exactly its first two cards,
+ * not already locked (e.g. split aces), and bankroll to cover the extra bet.
+ */
+export function canDouble(state: BlackjackState): boolean {
+  if (state.phase !== "player") return false;
+  const hand = state.hands[state.activeHand];
+  if (!hand || hand.done) return false;
+  if (hand.cards.length !== 2) return false;
+  return state.bankroll >= hand.bet;
+}
+
+/** Double the active hand's bet, take exactly one card, then end the hand. */
+export function double(state: BlackjackState): BlackjackState {
+  if (!canDouble(state)) return state;
+
+  const shoe = state.shoe.slice();
+  const hands = state.hands.slice();
+  const hand = hands[state.activeHand];
+  const cards = [...hand.cards, shoe.pop()!];
+  hands[state.activeHand] = {
+    ...hand,
+    cards,
+    bet: hand.bet * 2, // doubled wager
+    done: true, // exactly one card, then stand
+  };
+
+  const next = {
+    ...state,
+    shoe,
+    hands,
+    bankroll: state.bankroll - hand.bet, // the additional wager
+  };
+  return advance(next);
+}
+
 /** Hit the active hand. Auto-advances on bust or on reaching 21. */
 export function hit(state: BlackjackState): BlackjackState {
   if (state.phase !== "player") return state;
