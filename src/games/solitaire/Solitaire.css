@@ -1,0 +1,128 @@
+.solitaire {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.solitaire .felt {
+  flex: 1;
+  position: relative;
+  background: radial-gradient(
+    120% 120% at 50% 0%,
+    var(--felt) 0%,
+    var(--felt-edge) 100%
+  );
+  padding: 14px 10px calc(var(--safe-bottom) + 20px);
+  overflow-y: auto;
+
+  /* Card sizing: 7 columns must fit the viewport width with small gaps. */
+  --gap: 6px;
+  --card-w: calc((100vw - 20px - 6 * var(--gap)) / 7);
+  --card-h: calc(var(--card-w) * 1.4);
+}
+
+@media (min-width: 620px) {
+  .solitaire .felt {
+    --card-w: 78px;
+    --card-h: 109px;
+  }
+}
+
+.top-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap);
+  margin-bottom: 16px;
+}
+
+.stock-waste,
+.foundations {
+  display: flex;
+  gap: var(--gap);
+}
+
+.pile {
+  width: var(--card-w);
+  height: var(--card-h);
+}
+
+.pile.stock {
+  cursor: pointer;
+}
+
+.pile-placeholder {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 8px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: calc(var(--card-w) * 0.42);
+}
+
+.pile-placeholder.recycle {
+  font-size: calc(var(--card-w) * 0.5);
+}
+
+.foundation-hint {
+  font-size: calc(var(--card-w) * 0.5);
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.tableau {
+  display: flex;
+  gap: var(--gap);
+  align-items: flex-start;
+}
+
+.tableau-column {
+  position: relative;
+  width: var(--card-w);
+  min-height: var(--card-h);
+  flex: 1;
+}
+
+.tableau-column .card.stacked {
+  position: absolute;
+  left: 0;
+}
+
+.column-empty {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Win overlay */
+.win-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.72);
+  z-index: 30;
+  backdrop-filter: blur(3px);
+}
+
+.win-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.win-card h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+
+.win-card p {
+  margin: 0 0 18px;
+  color: var(--text-muted);
+}

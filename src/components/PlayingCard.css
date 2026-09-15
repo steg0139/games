@@ -1,0 +1,77 @@
+.card {
+  width: var(--card-w, 64px);
+  height: var(--card-h, 90px);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.card-back {
+  background: repeating-linear-gradient(
+      45deg,
+      #1d4ed8,
+      #1d4ed8 6px,
+      #2563eb 6px,
+      #2563eb 12px
+    );
+  border: 2px solid #f8fafc;
+}
+
+.card-face {
+  background: var(--card-bg);
+  border: 1px solid #cbd5e1;
+  overflow: hidden;
+}
+
+.card-face.red {
+  color: var(--card-red);
+}
+
+.card-face.black {
+  color: var(--card-black);
+}
+
+.card-face.selected {
+  outline: 3px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.card .corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.card .corner.top {
+  top: 4px;
+  left: 5px;
+}
+
+.card .corner.bottom {
+  bottom: 4px;
+  right: 5px;
+  transform: rotate(180deg);
+}
+
+.card .corner .rank {
+  font-size: calc(var(--card-w, 64px) * 0.26);
+}
+
+.card .corner .suit {
+  font-size: calc(var(--card-w, 64px) * 0.2);
+}
+
+.card .pip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--card-w, 64px) * 0.5);
+  opacity: 0.9;
+}

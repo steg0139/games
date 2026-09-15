@@ -1,0 +1,150 @@
+.blackjack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bj-felt {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: radial-gradient(
+    120% 100% at 50% 40%,
+    var(--felt) 0%,
+    var(--felt-edge) 100%
+  );
+  padding: 24px 16px;
+
+  --card-w: 74px;
+  --card-h: 104px;
+}
+
+.hand-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.hand-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.4px;
+}
+
+.hand-total {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.hand {
+  display: flex;
+  min-height: var(--card-h);
+}
+
+/* Overlap cards slightly for a tidy fanned look. */
+.hand .hand-card:not(:first-child) {
+  margin-left: -28px;
+}
+
+.empty-hand {
+  color: rgba(255, 255, 255, 0.4);
+  height: var(--card-h);
+  display: flex;
+  align-items: center;
+  font-size: 20px;
+}
+
+.bj-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.outcome-badge {
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.turn-hint {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.bj-controls {
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  padding: 16px 16px calc(var(--safe-bottom) + 16px);
+}
+
+.bet-row,
+.action-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.bet-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+
+.bet-stepper .icon-btn {
+  width: 40px;
+  text-align: center;
+  font-size: 20px;
+  padding: 6px 0;
+}
+
+.bet-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+}
+
+.bet-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bet-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.wide {
+  flex: 1;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  font-size: 16px;
+  text-align: center;
+}

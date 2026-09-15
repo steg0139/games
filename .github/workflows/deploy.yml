@@ -1,0 +1,124 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-2
+  BACKEND_STACK: CardGamesStack
+  HOSTING_STACK: CardGamesHostingStack
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # --- Backend -------------------------------------------------------
+      - name: Install infra dependencies
+        working-directory: infra
+        run: npm ci
+
+      - name: Deploy backend stack
+        working-directory: infra
+        run: npx cdk deploy "$BACKEND_STACK" --require-approval never
+
+      - name: Read API URL from backend stack
+        id: api
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name "$BACKEND_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text)
+          if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+            echo "Could not read ApiUrl output from $BACKEND_STACK" >&2
+            exit 1
+          fi
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+          echo "Resolved API URL: $API_URL"
+
+      # --- Frontend build ------------------------------------------------
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        env:
+          VITE_API_BASE_URL: ${{ steps.api.outputs.api_url }}
+        run: npm run build
+
+      # --- Hosting -------------------------------------------------------
+      - name: Deploy hosting stack
+        working-directory: infra
+        run: npx cdk deploy "$HOSTING_STACK" --require-approval never
+
+      - name: Read hosting outputs
+        id: hosting
+        run: |
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "$HOSTING_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='SiteBucketName'].OutputValue" \
+            --output text)
+          DIST_ID=$(aws cloudformation describe-stacks \
+            --stack-name "$HOSTING_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" \
+            --output text)
+          SITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name "$HOSTING_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='SiteUrl'].OutputValue" \
+            --output text)
+          echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
+          echo "dist_id=$DIST_ID" >> "$GITHUB_OUTPUT"
+          echo "site_url=$SITE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Sync build to S3
+        run: |
+          # Long-cache the fingerprinted assets; never cache the entry files
+          # and service worker so updates are picked up promptly.
+          aws s3 sync dist/ "s3://${{ steps.hosting.outputs.bucket }}/" \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html" \
+            --exclude "sw.js" \
+            --exclude "registerSW.js" \
+            --exclude "manifest.webmanifest"
+
+          aws s3 sync dist/ "s3://${{ steps.hosting.outputs.bucket }}/" \
+            --delete \
+            --cache-control "no-cache" \
+            --exclude "*" \
+            --include "index.html" \
+            --include "sw.js" \
+            --include "registerSW.js" \
+            --include "manifest.webmanifest"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.hosting.outputs.dist_id }}" \
+            --paths "/*"
+
+      - name: Summary
+        run: |
+          echo "### Deployed :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: ${{ steps.api.outputs.api_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Site: ${{ steps.hosting.outputs.site_url }}" >> "$GITHUB_STEP_SUMMARY"
