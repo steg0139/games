@@ -17,6 +17,7 @@ import {
   newGame,
   nextFoundationMove,
 } from "./logic";
+import { clearGame, loadGame, saveGame } from "./persistence";
 import "./Solitaire.css";
 
 interface Selection {
@@ -31,13 +32,21 @@ function samePile(a: PileId, b: PileId): boolean {
 }
 
 export default function SolitaireScreen() {
-  const [state, setState] = useState<SolitaireState>(() => newGame());
+  // Resume an in-progress game if one was saved (read once on mount).
+  const resumed = useRef(loadGame());
+
+  const [state, setState] = useState<SolitaireState>(
+    () => resumed.current?.state ?? newGame(),
+  );
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [moves, setMoves] = useState(0);
-  // Bumped on every new game so the deal-in animation replays.
-  const [dealId, setDealId] = useState(0);
-  const startedAt = useRef<number>(Date.now());
+  const [moves, setMoves] = useState(resumed.current?.moves ?? 0);
+  // Bumped on every new game so the deal-in animation replays. A resumed game
+  // should not replay the deal, so start at a non-zero id in that case.
+  const [dealId, setDealId] = useState(resumed.current ? 1 : 0);
+  const startedAt = useRef<number>(resumed.current?.startedAt ?? Date.now());
   const recordedResult = useRef(false);
+  // A resumed game shouldn't replay the deal-in animation; only fresh deals do.
+  const [freshDeal, setFreshDeal] = useState(!resumed.current);
 
   const [autoFinishing, setAutoFinishing] = useState(false);
   // Lets the player dismiss the "no moves" banner and keep trying the deal,
@@ -90,12 +99,15 @@ export default function SolitaireScreen() {
         timeSeconds: Math.round((Date.now() - startedAt.current) / 1000),
       });
     }
+    // Starting a new game discards any resumable save.
+    clearGame();
     setState(newGame());
     setSelection(null);
     setMoves(0);
     setDealId((n) => n + 1);
     setAutoFinishing(false);
     setDismissedDeadEnd(false);
+    setFreshDeal(true);
     startedAt.current = Date.now();
     recordedResult.current = false;
   }, []);
@@ -146,6 +158,17 @@ export default function SolitaireScreen() {
       });
     }
   }, [won, moves]);
+
+  // Persist the in-progress game so leaving the screen (or closing the PWA)
+  // and returning resumes it. Clear the save once the game ends (win or dead
+  // end); a fresh "New" game clears via reset().
+  useEffect(() => {
+    if (won || deadEnd) {
+      clearGame();
+    } else {
+      saveGame({ state, moves, startedAt: startedAt.current, drawCount });
+    }
+  }, [state, moves, won, deadEnd, drawCount]);
 
   const applyMove = useCallback(
     (from: PileId, cardIndex: number, to: PileId) => {
@@ -390,11 +413,11 @@ export default function SolitaireScreen() {
                     key={card.id}
                     card={card}
                     animate
-                    // Deal-in stagger only on a fresh board (before any move),
-                    // so mid-game moves don't re-trigger an entrance.
-                    entrance={moves === 0}
+                    // Deal-in stagger only on a fresh board before any move
+                    // (not on resume, and not after moves start).
+                    entrance={freshDeal && moves === 0}
                     entranceDelay={
-                      moves === 0
+                      freshDeal && moves === 0
                         ? (colIndex + cardIndex) * DEAL_STAGGER
                         : 0
                     }
