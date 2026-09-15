@@ -10,6 +10,7 @@ import type {
 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
+  DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
@@ -26,7 +27,7 @@ function pk(deviceId: string): string {
 
 const CORS_HEADERS: Record<string, string> = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET,PUT,OPTIONS",
+  "access-control-allow-methods": "GET,PUT,DELETE,OPTIONS",
   "access-control-allow-headers": "content-type,x-device-id",
   "access-control-max-age": "86400",
 };
@@ -102,6 +103,16 @@ export const handler = async (
             profile,
             updatedAt: Date.now(),
           },
+        }),
+      );
+      return json(200, { ok: true });
+    }
+
+    if (method === "DELETE") {
+      await ddb.send(
+        new DeleteCommand({
+          TableName: TABLE_NAME,
+          Key: { PK: pk(deviceId), SK: SK_PROFILE },
         }),
       );
       return json(200, { ok: true });

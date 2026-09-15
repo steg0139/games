@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { CLOUD_SYNC_ENABLED } from "../lib/config";
 import { getDeviceId } from "../lib/device";
-import { updateSettings, useProfile } from "../lib/stats/useProfile";
+import { clearProfile, updateSettings, useProfile } from "../lib/stats/useProfile";
 import "./Stats.css";
 
 function pct(n: number, d: number): string {
@@ -20,6 +21,19 @@ export default function Stats() {
   const profile = useProfile();
   const s = profile.solitaire;
   const b = profile.blackjack;
+
+  const [confirming, setConfirming] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClear = async () => {
+    setClearing(true);
+    try {
+      await clearProfile();
+    } finally {
+      setClearing(false);
+      setConfirming(false);
+    }
+  };
 
   return (
     <div className="stats">
@@ -118,6 +132,41 @@ export default function Stats() {
             Device ID
           </p>
           <p className="device-id">{getDeviceId()}</p>
+        </section>
+
+        <section className="stats-section danger-section">
+          <h2>Danger zone</h2>
+          <p className="sync-note">
+            Reset all stats and settings to defaults. This clears data on this
+            device{CLOUD_SYNC_ENABLED ? " and its cloud backup" : ""} and can't
+            be undone.
+          </p>
+
+          {!confirming ? (
+            <button
+              className="btn-danger"
+              onClick={() => setConfirming(true)}
+            >
+              Clear stats
+            </button>
+          ) : (
+            <div className="confirm-row">
+              <button
+                className="btn-danger"
+                onClick={handleClear}
+                disabled={clearing}
+              >
+                {clearing ? "Clearing…" : "Yes, clear everything"}
+              </button>
+              <button
+                className="icon-btn"
+                onClick={() => setConfirming(false)}
+                disabled={clearing}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </div>

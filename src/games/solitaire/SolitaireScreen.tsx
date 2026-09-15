@@ -31,6 +31,8 @@ export default function SolitaireScreen() {
   const [state, setState] = useState<SolitaireState>(() => newGame());
   const [selection, setSelection] = useState<Selection | null>(null);
   const [moves, setMoves] = useState(0);
+  // Bumped on every new game so the deal-in animation replays.
+  const [dealId, setDealId] = useState(0);
   const startedAt = useRef<number>(Date.now());
   const recordedWin = useRef(false);
 
@@ -40,6 +42,7 @@ export default function SolitaireScreen() {
     setState(newGame());
     setSelection(null);
     setMoves(0);
+    setDealId((n) => n + 1);
     startedAt.current = Date.now();
     recordedWin.current = false;
   }, []);
@@ -231,7 +234,7 @@ export default function SolitaireScreen() {
           </div>
         </div>
 
-        <div className="tableau">
+        <div className="tableau" key={dealId}>
           {state.tableau.map((column, colIndex) => {
             const to: PileId = { kind: "tableau", index: colIndex };
             return (
@@ -250,6 +253,14 @@ export default function SolitaireScreen() {
                     key={card.id}
                     card={card}
                     animate
+                    // Deal-in stagger only on a fresh board (before any move),
+                    // so mid-game moves don't re-trigger an entrance.
+                    entrance={moves === 0}
+                    entranceDelay={
+                      moves === 0
+                        ? (colIndex + cardIndex) * DEAL_STAGGER
+                        : 0
+                    }
                     className="stacked"
                     style={{ top: `${offsetForIndex(column, cardIndex)}px` }}
                     selected={isSelected(to, cardIndex)}
@@ -271,6 +282,9 @@ export default function SolitaireScreen() {
 // How many waste cards to fan out, and the horizontal offset between them.
 const WASTE_FAN = 3;
 const WASTE_FAN_OFFSET = 14;
+
+// Per-step delay (seconds) for the staggered deal-in. Kept small for a fast deal.
+const DEAL_STAGGER = 0.025;
 
 // Cumulative vertical offset for a stacked card: face-down cards sit tighter
 // than face-up cards, so we sum the per-card offset of everything above it.

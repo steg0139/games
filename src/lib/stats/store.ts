@@ -1,7 +1,11 @@
 // Local-first profile store. Reads/writes localStorage synchronously and
 // mirrors changes to the cloud in the background (debounced). On init it
 // reconciles the local copy with any cloud copy.
-import { fetchRemoteProfile, pushRemoteProfile } from "./sync";
+import {
+  deleteRemoteProfile,
+  fetchRemoteProfile,
+  pushRemoteProfile,
+} from "./sync";
 import {
   type Profile,
   PROFILE_VERSION,
@@ -88,6 +92,23 @@ class ProfileStore {
     writeLocal(next);
     this.emit();
     this.schedulePush();
+  }
+
+  /**
+   * Reset all stats and settings to defaults, locally and in the cloud.
+   * Cancels any pending push so the reset isn't overwritten, and deletes the
+   * cloud copy so it won't be restored on next load.
+   */
+  async clear(): Promise<void> {
+    if (this.pushTimer) {
+      clearTimeout(this.pushTimer);
+      this.pushTimer = null;
+    }
+    const fresh = defaultProfile();
+    this.profile = fresh;
+    writeLocal(fresh);
+    this.emit();
+    await deleteRemoteProfile();
   }
 
   private schedulePush(): void {

@@ -21,6 +21,11 @@ export function updateSettings(patch: Partial<Settings>): void {
   profileStore.update((p) => ({ ...p, settings: { ...p.settings, ...patch } }));
 }
 
+/** Reset all stats and settings to defaults (local + cloud). */
+export function clearProfile(): Promise<void> {
+  return profileStore.clear();
+}
+
 // ---- Game stat recorders -------------------------------------------------
 
 export function recordSolitaireResult(result: {

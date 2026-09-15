@@ -44,6 +44,24 @@ export async function fetchRemoteProfile(): Promise<Profile | null> {
   }
 }
 
+/** Delete this device's cloud profile. Returns true on success. */
+export async function deleteRemoteProfile(): Promise<boolean> {
+  if (!CLOUD_SYNC_ENABLED) return false;
+  const deviceId = getDeviceId();
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/profile`, {
+      method: "DELETE",
+      headers: { "x-device-id": deviceId },
+      signal: withTimeout(),
+    });
+    // 404 means there was nothing to delete — treat as success.
+    return res.ok || res.status === 404;
+  } catch {
+    return false;
+  }
+}
+
 /** Push the profile to the cloud. Returns true on success. */
 export async function pushRemoteProfile(profile: Profile): Promise<boolean> {
   if (!CLOUD_SYNC_ENABLED) return false;

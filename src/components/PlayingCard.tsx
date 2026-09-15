@@ -21,6 +21,8 @@ interface Props {
   layoutId?: string | null;
   /** Animate the card in (scale/fade). Good for dealt hands. */
   entrance?: boolean;
+  /** Delay (seconds) before the entrance animation plays. For staggered deals. */
+  entranceDelay?: number;
 }
 
 function FaceContent({ card }: { card: Card }) {
@@ -50,6 +52,7 @@ export default function PlayingCard({
   animate = false,
   layoutId,
   entrance = false,
+  entranceDelay = 0,
 }: Props) {
   const color = cardColor(card.suit);
 
@@ -59,11 +62,10 @@ export default function PlayingCard({
   const resolvedLayoutId =
     layoutId === null ? undefined : (layoutId ?? card.id);
 
-  const outerProps = animate
+  const layoutProps = animate
     ? {
         layout: true as const,
         ...(resolvedLayoutId ? { layoutId: resolvedLayoutId } : {}),
-        transition: CARD_TRANSITION,
       }
     : {};
 
@@ -71,14 +73,23 @@ export default function PlayingCard({
     ? {
         initial: { opacity: 0, scale: 0.85, y: -12 },
         animate: { opacity: 1, scale: 1, y: 0 },
-        transition: CARD_TRANSITION,
       }
     : {};
 
+  // Keep layout (position) moves on the snappy spring regardless of any
+  // entrance delay; only the entrance's opacity/scale/y carries the delay.
+  const transition = {
+    layout: CARD_TRANSITION,
+    default: entrance
+      ? { ...CARD_TRANSITION, delay: entranceDelay }
+      : CARD_TRANSITION,
+  };
+
   return (
     <motion.div
-      {...outerProps}
+      {...layoutProps}
       {...entranceProps}
+      transition={transition}
       className={`card-outer ${className ?? ""}`}
       style={style}
       onClick={onClick}

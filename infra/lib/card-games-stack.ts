@@ -62,6 +62,7 @@ export class CardGamesStack extends cdk.Stack {
         allowMethods: [
           CorsHttpMethod.GET,
           CorsHttpMethod.PUT,
+          CorsHttpMethod.DELETE,
           CorsHttpMethod.OPTIONS,
         ],
         allowHeaders: ["content-type", "x-device-id"],
@@ -71,7 +72,7 @@ export class CardGamesStack extends cdk.Stack {
 
     api.addRoutes({
       path: "/profile",
-      methods: [HttpMethod.GET, HttpMethod.PUT],
+      methods: [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE],
       integration,
     });
 
