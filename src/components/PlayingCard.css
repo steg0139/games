@@ -106,8 +106,29 @@
   opacity: 0.9;
 }
 
+/* Hint highlight: a soft pulsing ring around the suggested card. */
+.card-outer.hinted {
+  border-radius: 8px;
+  animation: hint-pulse 0.8s ease-in-out infinite;
+  z-index: 8;
+}
+
+@keyframes hint-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.35);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card-flip {
     transition: none !important;
+  }
+  .card-outer.hinted {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.6);
   }
 }

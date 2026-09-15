@@ -313,16 +313,8 @@ function cardFitsAnyTableau(
   return false;
 }
 
-/**
- * True if the position has at least one legal move available now or reachable
- * by cycling the stock. Because drawing only changes which card is available
- * (never the tableau/foundations), every stock and waste card is eventually
- * playable as a "top", so it's sufficient to test each of them against the
- * current board — no draw-by-draw simulation needed. Assumes unlimited redeals.
- */
-export function hasAnyMove(state: SolitaireState): boolean {
-  // 1. Tableau moves: any valid face-up run whose head can go to a foundation
-  //    (single card only) or onto another tableau column (incl. King -> empty).
+/** True if any tableau face-up run has a legal move (to foundation or column). */
+function hasTableauMove(state: SolitaireState): boolean {
   for (let c = 0; c < 7; c++) {
     const col = state.tableau[c];
     for (let r = 0; r < col.length; r++) {
@@ -343,19 +335,148 @@ export function hasAnyMove(state: SolitaireState): boolean {
       }
     }
   }
+  return false;
+}
 
-  // 2. Any stock or waste card can be surfaced by drawing; if any of them can
-  //    land on a foundation or tableau, the game can still progress.
+/**
+ * True if any stock or waste card can currently be played to a foundation or
+ * tableau. Every stock/waste card is eventually surfaceable by cycling the
+ * stock (in draw-three you may need to play the cards above it first, which is
+ * itself a move), so for the purpose of "can the game still progress at all?"
+ * it is sound — and safely non-pessimistic — to test every stock/waste card
+ * against the current board. Assumes unlimited redeals.
+ *
+ * Design note: an earlier attempt simulated the exact draw-three reachable set,
+ * but a conservative simulation risks a FALSE dead end (declaring a winnable
+ * game lost), which is the one error we must never make. Testing all stock and
+ * waste cards can only err toward "keep playing", never toward a false loss.
+ */
+function hasPlayableStockOrWaste(state: SolitaireState): boolean {
   for (const card of [...state.stock, ...state.waste]) {
     if (cardFitsAnyFoundation(card, state)) return true;
     if (cardFitsAnyTableau(card, state)) return true;
   }
-
   return false;
+}
+
+/**
+ * True if the position has at least one legal move available now or reachable
+ * by cycling the stock. Tableau moves plus any playable stock/waste card.
+ */
+export function hasAnyMove(state: SolitaireState): boolean {
+  return hasTableauMove(state) || hasPlayableStockOrWaste(state);
 }
 
 /** True when the game is lost: not won, and no move is available or reachable. */
 export function isDeadEnd(state: SolitaireState): boolean {
   if (isWon(state)) return false;
   return !hasAnyMove(state);
+}
+
+/**
+ * A suggested next action. `move` highlights a concrete source (and, for a
+ * playable card, its destination). `draw` suggests tapping the stock because a
+ * playable card is reachable only after drawing. `none` means no move exists.
+ */
+export type Hint =
+  | { kind: "move"; from: PileId; cardIndex: number; to: PileId }
+  | { kind: "draw" }
+  | { kind: "none" };
+
+/** Score a move so the hint prefers the most useful one. Higher = better. */
+function scoreMove(state: SolitaireState, from: PileId, to: PileId): number {
+  let score = 0;
+  if (to.kind === "foundation") score += 100; // advancing a foundation is best
+  if (from.kind === "tableau") {
+    const col = state.tableau[from.index];
+    // Moving the whole column's face-up run that sits on a face-down card will
+    // reveal it — very useful.
+    const faceDownBelow = col.some((c) => !c.faceUp);
+    if (faceDownBelow) score += 50;
+    // Emptying a column (freeing a spot for a King) is useful.
+  }
+  if (from.kind === "waste") score += 10; // clearing the waste is mildly useful
+  return score;
+}
+
+/**
+ * Suggest a next action: the best available on-board move, else a draw if a
+ * playable card is reachable by cycling the stock, else none (dead end).
+ */
+export function findHint(state: SolitaireState): Hint {
+  let best: { from: PileId; cardIndex: number; to: PileId; score: number } | null =
+    null;
+
+  const consider = (from: PileId, cardIndex: number, to: PileId) => {
+    const score = scoreMove(state, from, to);
+    if (!best || score > best.score) best = { from, cardIndex, to, score };
+  };
+
+  // Tableau sources: valid face-up runs.
+  for (let c = 0; c < 7; c++) {
+    const col = state.tableau[c];
+    for (let r = 0; r < col.length; r++) {
+      if (!col[r].faceUp) continue;
+      const run = faceUpRunFrom(col, r);
+      if (!run) continue;
+      const head = run[0];
+
+      if (run.length === 1) {
+        for (let f = 0; f < 4; f++) {
+          if (canStackOnFoundation(head, state.foundations[f], SUIT_ORDER[f])) {
+            consider({ kind: "tableau", index: c }, r, {
+              kind: "foundation",
+              index: f,
+            });
+          }
+        }
+      }
+      const kingOwnsWholeColumn = run.length === col.length && head.rank === "K";
+      if (!kingOwnsWholeColumn) {
+        for (let t = 0; t < 7; t++) {
+          if (t === c) continue;
+          const tcol = state.tableau[t];
+          if (canStackOnTableau(head, tcol[tcol.length - 1])) {
+            consider({ kind: "tableau", index: c }, r, { kind: "tableau", index: t });
+          }
+        }
+      }
+    }
+  }
+
+  // Waste top.
+  if (state.waste.length > 0) {
+    const top = state.waste[state.waste.length - 1];
+    const idx = state.waste.length - 1;
+    for (let f = 0; f < 4; f++) {
+      if (canStackOnFoundation(top, state.foundations[f], SUIT_ORDER[f])) {
+        consider({ kind: "waste" }, idx, { kind: "foundation", index: f });
+      }
+    }
+    for (let t = 0; t < 7; t++) {
+      const tcol = state.tableau[t];
+      if (canStackOnTableau(top, tcol[tcol.length - 1])) {
+        consider({ kind: "waste" }, idx, { kind: "tableau", index: t });
+      }
+    }
+  }
+
+  if (best) {
+    const b = best as {
+      from: PileId;
+      cardIndex: number;
+      to: PileId;
+      score: number;
+    };
+    return { kind: "move", from: b.from, cardIndex: b.cardIndex, to: b.to };
+  }
+
+  // No on-board move. Can drawing surface something playable?
+  for (const card of [...state.stock, ...state.waste]) {
+    if (cardFitsAnyFoundation(card, state) || cardFitsAnyTableau(card, state)) {
+      return { kind: "draw" };
+    }
+  }
+
+  return { kind: "none" };
 }

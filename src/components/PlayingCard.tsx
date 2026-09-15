@@ -11,6 +11,8 @@ interface Props {
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
   selected?: boolean;
+  /** Briefly highlight this card as part of a hint. */
+  hinted?: boolean;
   /** Enable framer-motion layout animation (movement between parents). */
   animate?: boolean;
   /**
@@ -49,6 +51,7 @@ export default function PlayingCard({
   onClick,
   onPointerDown,
   selected,
+  hinted = false,
   animate = false,
   layoutId,
   entrance = false,
@@ -95,7 +98,7 @@ export default function PlayingCard({
       {...layoutProps}
       {...entranceProps}
       transition={transition}
-      className={`card-outer ${className ?? ""}`}
+      className={`card-outer ${hinted ? "hinted" : ""} ${className ?? ""}`}
       style={style}
       onClick={onClick}
       onPointerDown={onPointerDown}

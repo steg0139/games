@@ -52,6 +52,12 @@
   position: relative;
 }
 
+/* Hint: pulse the stock when the suggested action is to draw. */
+.pile.stock.hint-stock {
+  border-radius: 8px;
+  animation: hint-pulse 0.8s ease-in-out infinite;
+}
+
 /* Remaining-cards badge in the corner of the stock pile. */
 .pile.stock .pile-count {
   position: absolute;
