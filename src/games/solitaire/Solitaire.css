@@ -51,6 +51,17 @@
   cursor: pointer;
 }
 
+/* Waste fans up to 3 cards horizontally; widen it and stack absolutely. */
+.pile.waste {
+  position: relative;
+  width: calc(var(--card-w) + 28px);
+}
+
+.pile.waste .card.waste-card {
+  position: absolute;
+  top: 0;
+}
+
 .pile-placeholder {
   width: var(--card-w);
   height: var(--card-h);

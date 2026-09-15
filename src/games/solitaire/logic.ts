@@ -50,7 +50,14 @@ export function newGame(): SolitaireState {
   };
 }
 
-/** Draw one card from stock to waste. If stock is empty, recycle waste. */
+/** Number of cards flipped from the stock per draw (Klondike draw-three). */
+export const DRAW_COUNT = 3;
+
+/**
+ * Draw up to DRAW_COUNT cards from the stock to the waste (fewer if the stock
+ * is nearly empty). If the stock is empty, recycle the waste back into it.
+ * Only the top waste card is ever playable.
+ */
 export function drawFromStock(state: SolitaireState): SolitaireState {
   if (state.stock.length === 0) {
     if (state.waste.length === 0) return state;
@@ -58,9 +65,13 @@ export function drawFromStock(state: SolitaireState): SolitaireState {
     const stock = [...state.waste].reverse().map((c) => ({ ...c, faceUp: false }));
     return { ...state, stock, waste: [] };
   }
+
   const stock = state.stock.slice();
-  const card = { ...stock.pop()!, faceUp: true };
-  return { ...state, stock, waste: [...state.waste, card] };
+  const drawn: Card[] = [];
+  for (let i = 0; i < DRAW_COUNT && stock.length > 0; i++) {
+    drawn.push({ ...stock.pop()!, faceUp: true });
+  }
+  return { ...state, stock, waste: [...state.waste, ...drawn] };
 }
 
 function canStackOnTableau(moving: Card, target: Card | undefined): boolean {

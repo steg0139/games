@@ -165,13 +165,31 @@ export default function SolitaireScreen() {
 
             <div className="pile waste">
               {state.waste.length > 0 ? (
-                <PlayingCard
-                  card={state.waste[state.waste.length - 1]}
-                  selected={isSelected({ kind: "waste" }, state.waste.length - 1)}
-                  onClick={() =>
-                    tapCard({ kind: "waste" }, state.waste.length - 1)
-                  }
-                />
+                (() => {
+                  // Fan the top few waste cards; only the topmost is playable.
+                  const fanCount = Math.min(WASTE_FAN, state.waste.length);
+                  const startIndex = state.waste.length - fanCount;
+                  return state.waste.slice(startIndex).map((card, i) => {
+                    const cardIndex = startIndex + i;
+                    const isTop = cardIndex === state.waste.length - 1;
+                    return (
+                      <PlayingCard
+                        key={card.id}
+                        card={card}
+                        className="waste-card"
+                        style={{ left: `${i * WASTE_FAN_OFFSET}px` }}
+                        selected={
+                          isTop && isSelected({ kind: "waste" }, cardIndex)
+                        }
+                        onClick={
+                          isTop
+                            ? () => tapCard({ kind: "waste" }, cardIndex)
+                            : undefined
+                        }
+                      />
+                    );
+                  });
+                })()
               ) : (
                 <div className="pile-placeholder" />
               )}
@@ -240,6 +258,10 @@ export default function SolitaireScreen() {
     </div>
   );
 }
+
+// How many waste cards to fan out, and the horizontal offset between them.
+const WASTE_FAN = 3;
+const WASTE_FAN_OFFSET = 14;
 
 // Cumulative vertical offset for a stacked card: face-down cards sit tighter
 // than face-up cards, so we sum the per-card offset of everything above it.
