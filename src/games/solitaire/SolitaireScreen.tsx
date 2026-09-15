@@ -384,16 +384,38 @@ export default function SolitaireScreen() {
 
   // Which pile (if any) is under the given viewport point.
   const pileAtPoint = useCallback((cx: number, cy: number): PileId | null => {
-    const hit = (el: HTMLDivElement | null) => {
+    const within = (el: HTMLDivElement | null) => {
       if (!el) return false;
       const r = el.getBoundingClientRect();
       return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
     };
+
+    // Exact hit on a foundation.
     for (let i = 0; i < foundationEls.current.length; i++) {
-      if (hit(foundationEls.current[i])) return { kind: "foundation", index: i };
+      if (within(foundationEls.current[i]))
+        return { kind: "foundation", index: i };
     }
+    // Exact hit on a tableau column.
     for (let i = 0; i < columnEls.current.length; i++) {
-      if (hit(columnEls.current[i])) return { kind: "tableau", index: i };
+      if (within(columnEls.current[i])) return { kind: "tableau", index: i };
+    }
+
+    // Forgiving fallback for tableau: match by horizontal column span (and a
+    // little vertical slack), so dropping just below/between columns still
+    // targets the intended column. moveCard still validates legality.
+    for (let i = 0; i < columnEls.current.length; i++) {
+      const el = columnEls.current[i];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const slack = 40;
+      if (
+        cx >= r.left &&
+        cx <= r.right &&
+        cy >= r.top - slack &&
+        cy <= r.bottom + slack
+      ) {
+        return { kind: "tableau", index: i };
+      }
     }
     return null;
   }, []);
@@ -667,11 +689,18 @@ export default function SolitaireScreen() {
         <div className="tableau" key={dealId}>
           {state.tableau.map((column, colIndex) => {
             const to: PileId = { kind: "tableau", index: colIndex };
+            // Make the column box tall enough to contain its (absolutely
+            // positioned) stack, so drop hit-testing covers the whole column.
+            const lastOffset =
+              column.length > 0
+                ? offsetForIndex(column, column.length - 1)
+                : 0;
             return (
               <div
                 key={colIndex}
                 ref={(el) => (columnEls.current[colIndex] = el)}
                 className="tableau-column"
+                style={{ minHeight: `calc(${lastOffset}px + var(--card-h))` }}
                 onClick={() =>
                   column.length === 0 ? tapEmptyPile(to) : undefined
                 }
