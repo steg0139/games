@@ -9,10 +9,12 @@ import {
   type SolitaireState,
   SUIT_ORDER,
   autoMoveTarget,
+  canAutoFinish,
   drawFromStock,
   isWon,
   moveCard,
   newGame,
+  nextFoundationMove,
 } from "./logic";
 import "./Solitaire.css";
 
@@ -36,19 +38,50 @@ export default function SolitaireScreen() {
   const startedAt = useRef<number>(Date.now());
   const recordedWin = useRef(false);
 
+  const [autoFinishing, setAutoFinishing] = useState(false);
+
   const profile = useProfile();
   const drawCount = profile.settings.solitaireDrawCount;
 
   const won = useMemo(() => isWon(state), [state]);
+  const showAutoFinish = useMemo(
+    () => canAutoFinish(state) && !autoFinishing,
+    [state, autoFinishing],
+  );
 
   const reset = useCallback(() => {
     setState(newGame());
     setSelection(null);
     setMoves(0);
     setDealId((n) => n + 1);
+    setAutoFinishing(false);
     startedAt.current = Date.now();
     recordedWin.current = false;
   }, []);
+
+  // Auto-finish: once started, step the next card to a foundation on an
+  // interval so the cards visibly fly home. Stops when there are no more
+  // foundation moves (i.e. the board is won).
+  useEffect(() => {
+    if (!autoFinishing) return;
+    const timer = setInterval(() => {
+      setState((s) => {
+        const move = nextFoundationMove(s);
+        if (!move) {
+          setAutoFinishing(false);
+          return s;
+        }
+        const next = moveCard(s, move.from, move.cardIndex, move.to);
+        if (!next) {
+          setAutoFinishing(false);
+          return s;
+        }
+        setMoves((m) => m + 1);
+        return next;
+      });
+    }, AUTO_FINISH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [autoFinishing]);
 
   // Changing the draw mode can't apply mid-game, so start a fresh deal.
   const prevDrawCount = useRef(drawCount);
@@ -84,14 +117,16 @@ export default function SolitaireScreen() {
   );
 
   const handleStock = useCallback(() => {
+    if (autoFinishing) return;
     setState((s) => drawFromStock(s, drawCount));
     setSelection(null);
-  }, [drawCount]);
+  }, [drawCount, autoFinishing]);
 
   // Tap logic: if nothing selected, try auto-move; if that fails, select.
   // If something selected, treat the new tap as a destination.
   const tapCard = useCallback(
     (from: PileId, cardIndex: number) => {
+      if (autoFinishing) return;
       if (selection) {
         // Tapping the same pile again clears selection.
         if (samePile(selection.from, from) && selection.cardIndex === cardIndex) {
@@ -109,7 +144,7 @@ export default function SolitaireScreen() {
         setSelection({ from, cardIndex });
       }
     },
-    [selection, state, applyMove],
+    [selection, state, applyMove, autoFinishing],
   );
 
   // Tapping an empty pile as a destination.
@@ -146,6 +181,17 @@ export default function SolitaireScreen() {
         </Link>
         <h1>Solitaire</h1>
         <span className="status-line">{moves} moves</span>
+        {showAutoFinish && (
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setSelection(null);
+              setAutoFinishing(true);
+            }}
+          >
+            Auto-finish
+          </button>
+        )}
         <button className="btn-primary" onClick={reset}>
           New
         </button>
@@ -310,6 +356,9 @@ const WASTE_FAN_OFFSET = 14;
 
 // Per-step delay (seconds) for the staggered deal-in. Kept small for a fast deal.
 const DEAL_STAGGER = 0.025;
+
+// Delay between auto-finish steps so cards visibly fly to the foundations.
+const AUTO_FINISH_INTERVAL_MS = 160;
 
 // Cumulative vertical offset for a stacked card: face-down cards sit tighter
 // than face-up cards, so we sum the per-card offset of everything above it.

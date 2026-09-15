@@ -229,3 +229,59 @@ export function autoMoveTarget(
 export function isWon(state: SolitaireState): boolean {
   return state.foundations.every((p) => p.length === 13);
 }
+
+/**
+ * True when a win is guaranteed and can be auto-completed: the stock and waste
+ * are empty and every tableau card is face up. In that state all remaining
+ * cards are visible and freely movable, so they can always be sent to the
+ * foundations in order.
+ */
+export function canAutoFinish(state: SolitaireState): boolean {
+  if (isWon(state)) return false; // already done
+  if (state.stock.length > 0 || state.waste.length > 0) return false;
+  return state.tableau.every((col) => col.every((c) => c.faceUp));
+}
+
+/**
+ * Find the next single top-of-pile card that can move to a foundation, for
+ * auto-finish stepping. Checks tableau tops (and waste, for completeness).
+ * Returns the source pile + card index, or null if none is currently playable.
+ */
+export function nextFoundationMove(
+  state: SolitaireState,
+): { from: PileId; cardIndex: number; to: PileId } | null {
+  const tryCard = (
+    card: Card | undefined,
+    from: PileId,
+    cardIndex: number,
+  ): { from: PileId; cardIndex: number; to: PileId } | null => {
+    if (!card) return null;
+    for (let i = 0; i < 4; i++) {
+      if (canStackOnFoundation(card, state.foundations[i], SUIT_ORDER[i])) {
+        return { from, cardIndex, to: { kind: "foundation", index: i } };
+      }
+    }
+    return null;
+  };
+
+  // Waste top first.
+  const wasteMove = tryCard(
+    state.waste[state.waste.length - 1],
+    { kind: "waste" },
+    state.waste.length - 1,
+  );
+  if (wasteMove) return wasteMove;
+
+  // Then each tableau column top.
+  for (let i = 0; i < 7; i++) {
+    const col = state.tableau[i];
+    const move = tryCard(
+      col[col.length - 1],
+      { kind: "tableau", index: i },
+      col.length - 1,
+    );
+    if (move) return move;
+  }
+
+  return null;
+}
