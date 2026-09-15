@@ -8,6 +8,8 @@ import {
 import {
   type BlackjackState,
   type Outcome,
+  STARTING_BANKROLL,
+  canSplit,
   deal,
   handValue,
   hit,
@@ -15,8 +17,11 @@ import {
   nextRound,
   outcomeText,
   setBet,
+  split,
   stand,
 } from "./logic";
+import { clearBankroll, loadBankroll, saveBankroll } from "./bankroll";
+import "./Blackjack.css";
 
 function outcomeToResult(outcome: Outcome): BlackjackResult {
   switch (outcome) {
@@ -32,24 +37,33 @@ function outcomeToResult(outcome: Outcome): BlackjackResult {
       return "push";
   }
 }
-import "./Blackjack.css";
 
-const BET_STEPS = [5, 25, 100];
+const BET_STEP = 25;
 
 export default function BlackjackScreen() {
-  const [state, setState] = useState<BlackjackState>(() => newGame());
-  const recordedOutcome = useRef(false);
+  const [state, setState] = useState<BlackjackState>(() =>
+    newGame(loadBankroll()),
+  );
+  const recordedRound = useRef(false);
 
-  // Record each hand once, when it settles. Reset the guard when a new hand
-  // is dealt (phase leaves "settled").
+  // Persist the wallet whenever it changes.
   useEffect(() => {
-    if (state.phase === "settled" && state.outcome && !recordedOutcome.current) {
-      recordedOutcome.current = true;
-      recordBlackjackHand(outcomeToResult(state.outcome), state.bankroll);
+    saveBankroll(state.bankroll);
+  }, [state.bankroll]);
+
+  // Record each settled round's hands once (a split produces multiple).
+  useEffect(() => {
+    if (state.phase === "settled" && !recordedRound.current) {
+      recordedRound.current = true;
+      for (const hand of state.hands) {
+        if (hand.outcome) {
+          recordBlackjackHand(outcomeToResult(hand.outcome), state.bankroll);
+        }
+      }
     } else if (state.phase !== "settled") {
-      recordedOutcome.current = false;
+      recordedRound.current = false;
     }
-  }, [state.phase, state.outcome, state.bankroll]);
+  }, [state.phase, state.hands, state.bankroll]);
 
   const adjustBet = useCallback((delta: number) => {
     setState((s) => setBet(s, s.bet + delta));
@@ -58,16 +72,21 @@ export default function BlackjackScreen() {
   const startRound = useCallback(() => setState((s) => deal(s)), []);
   const doHit = useCallback(() => setState((s) => hit(s)), []);
   const doStand = useCallback(() => setState((s) => stand(s)), []);
+  const doSplit = useCallback(() => setState((s) => split(s)), []);
   const continueGame = useCallback(() => setState((s) => nextRound(s)), []);
-  const restart = useCallback(() => setState(newGame()), []);
+  const restart = useCallback(() => {
+    clearBankroll();
+    setState(newGame(STARTING_BANKROLL));
+  }, []);
 
   const dealerShownValue =
     state.phase === "player"
       ? handValue(state.dealer.filter((c) => c.faceUp))
       : handValue(state.dealer);
 
-  const playerValue = handValue(state.player);
   const broke = state.phase === "betting" && state.bankroll < 5;
+  const splittable = canSplit(state);
+  const multiHand = state.hands.length > 1;
 
   return (
     <div className="blackjack">
@@ -107,38 +126,61 @@ export default function BlackjackScreen() {
 
         {/* Center message */}
         <div className="bj-center">
-          {state.outcome && (
-            <div className="outcome-badge">{outcomeText(state.outcome)}</div>
-          )}
-          {state.phase === "player" && (
+          {state.phase === "player" && !multiHand && (
             <div className="turn-hint">Your move</div>
+          )}
+          {state.phase === "player" && multiHand && (
+            <div className="turn-hint">Hand {state.activeHand + 1}</div>
           )}
         </div>
 
-        {/* Player */}
-        <section className="hand-area">
-          <div className="hand">
-            {state.player.length === 0 ? (
-              <div className="empty-hand">—</div>
-            ) : (
-              state.player.map((card, i) => (
-                <PlayingCard
-                  key={`${card.id}-${i}`}
-                  card={card}
-                  entrance
-                  layoutId={null}
-                  className="hand-card"
-                />
-              ))
-            )}
-          </div>
-          <div className="hand-label">
-            <span>You</span>
-            {state.player.length > 0 && (
-              <span className="hand-total">{playerValue}</span>
-            )}
-          </div>
-        </section>
+        {/* Player hands */}
+        <div className={`player-hands ${multiHand ? "multi" : ""}`}>
+          {state.hands.length === 0 ? (
+            <section className="hand-area">
+              <div className="hand">
+                <div className="empty-hand">—</div>
+              </div>
+              <div className="hand-label">
+                <span>You</span>
+              </div>
+            </section>
+          ) : (
+            state.hands.map((hand, hi) => {
+              const isActive =
+                state.phase === "player" && hi === state.activeHand;
+              return (
+                <section
+                  key={hi}
+                  className={`hand-area player-hand ${
+                    isActive ? "active" : ""
+                  }`}
+                >
+                  <div className="hand">
+                    {hand.cards.map((card, i) => (
+                      <PlayingCard
+                        key={`${card.id}-${i}`}
+                        card={card}
+                        entrance
+                        layoutId={null}
+                        className="hand-card"
+                      />
+                    ))}
+                  </div>
+                  <div className="hand-label">
+                    <span>{multiHand ? `Hand ${hi + 1}` : "You"}</span>
+                    <span className="hand-total">{handValue(hand.cards)}</span>
+                    {hand.outcome && (
+                      <span className="hand-outcome">
+                        {outcomeText(hand.outcome)}
+                      </span>
+                    )}
+                  </div>
+                </section>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Controls */}
@@ -148,7 +190,7 @@ export default function BlackjackScreen() {
             <div className="bet-stepper">
               <button
                 className="icon-btn"
-                onClick={() => adjustBet(-BET_STEPS[1])}
+                onClick={() => adjustBet(-BET_STEP)}
                 aria-label="Lower bet"
               >
                 −
@@ -159,7 +201,7 @@ export default function BlackjackScreen() {
               </div>
               <button
                 className="icon-btn"
-                onClick={() => adjustBet(BET_STEPS[1])}
+                onClick={() => adjustBet(BET_STEP)}
                 aria-label="Raise bet"
               >
                 +
@@ -188,6 +230,11 @@ export default function BlackjackScreen() {
             <button className="icon-btn wide" onClick={doStand}>
               Stand
             </button>
+            {splittable && (
+              <button className="icon-btn wide" onClick={doSplit}>
+                Split
+              </button>
+            )}
           </div>
         )}
 
