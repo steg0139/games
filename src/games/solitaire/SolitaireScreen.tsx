@@ -174,10 +174,18 @@ export default function SolitaireScreen() {
               aria-label="Draw from stock"
             >
               {state.stock.length > 0 ? (
-                <PlayingCard
-                  card={state.stock[state.stock.length - 1]}
-                  animate
-                />
+                <>
+                  {/* Static pile: a plain card back that stays put. It does
+                      not share a layoutId with the waste, so drawing doesn't
+                      animate the whole stock away. */}
+                  <PlayingCard
+                    card={state.stock[state.stock.length - 1]}
+                    layoutId={null}
+                  />
+                  <span className="pile-count" aria-hidden>
+                    {state.stock.length}
+                  </span>
+                </>
               ) : (
                 <div className="pile-placeholder recycle">↻</div>
               )}
@@ -201,6 +209,7 @@ export default function SolitaireScreen() {
                         key={card.id}
                         card={card}
                         animate
+                        entrance
                         className="waste-card"
                         style={{ left: `${i * WASTE_FAN_OFFSET}px` }}
                         selected={
