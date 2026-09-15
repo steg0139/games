@@ -212,3 +212,31 @@
   margin: 0 0 18px;
   color: var(--text-muted);
 }
+
+/* Drag: the floating stack that follows the pointer. */
+.drag-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.drag-layer .drag-card {
+  position: absolute;
+  left: 0;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+
+/* Source cards being dragged are hidden in place (the drag layer shows them). */
+.card-outer.dragging-src {
+  opacity: 0;
+}
+
+/* Let card presses start a drag rather than scrolling the felt. */
+.tableau-column .card-outer,
+.pile.waste .card-outer,
+.pile.foundation .card-outer {
+  touch-action: none;
+}

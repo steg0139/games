@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { LayoutGroup } from "framer-motion";
 import PlayingCard from "../../components/PlayingCard";
-import { suitSymbol } from "../../lib/cards";
+import { type Card, cardColor, rankValue, suitSymbol } from "../../lib/cards";
 import { recordSolitaireResult, useProfile } from "../../lib/stats/useProfile";
 import {
   type PileId,
@@ -25,6 +25,29 @@ interface Selection {
   from: PileId;
   cardIndex: number;
 }
+
+// Live drag being rendered (the floating card stack following the pointer).
+interface DragState {
+  cards: Card[]; // the run being dragged
+  x: number; // current top-left of the drag layer (viewport coords)
+  y: number;
+}
+
+// Internal bookkeeping for a pointer-drag gesture in progress.
+interface DragSession {
+  from: PileId;
+  cardIndex: number;
+  cards: Card[];
+  pointerId: number;
+  startX: number;
+  startY: number;
+  grabOffsetX: number; // pointer offset within the grabbed card
+  grabOffsetY: number;
+  active: boolean; // passed the movement threshold
+  moved: boolean; // whether a real drag happened (suppresses the click)
+}
+
+const DRAG_THRESHOLD = 8; // px before a press becomes a drag
 
 function samePile(a: PileId, b: PileId): boolean {
   if (a.kind !== b.kind) return false;
@@ -58,6 +81,14 @@ export default function SolitaireScreen() {
   const [hintCardIds, setHintCardIds] = useState<Set<string>>(new Set());
   const [hintStock, setHintStock] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Drag: refs to drop-zone piles for hit-testing, and the live drag session.
+  const foundationEls = useRef<(HTMLDivElement | null)[]>([]);
+  const columnEls = useRef<(HTMLDivElement | null)[]>([]);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const dragRef = useRef<DragSession | null>(null);
+  // Set true when a drag just ended, so the trailing click is ignored.
+  const justDragged = useRef(false);
 
   const [autoFinishing, setAutoFinishing] = useState(false);
   // Lets the player dismiss the "no moves" banner and keep trying the deal,
@@ -322,6 +353,129 @@ export default function SolitaireScreen() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // The face-up run of cards that would be dragged starting at a position.
+  // For tableau: the contiguous valid descending run from cardIndex to the
+  // bottom. For waste/foundation: just that single card.
+  const draggableRun = useCallback(
+    (from: PileId, cardIndex: number): Card[] | null => {
+      if (from.kind === "waste") {
+        const c = state.waste[cardIndex];
+        return c ? [c] : null;
+      }
+      if (from.kind === "foundation") {
+        const c = state.foundations[from.index][cardIndex];
+        return c ? [c] : null;
+      }
+      const col = state.tableau[from.index];
+      const run = col.slice(cardIndex);
+      if (run.length === 0 || run.some((c) => !c.faceUp)) return null;
+      for (let i = 0; i < run.length - 1; i++) {
+        const a = run[i];
+        const b = run[i + 1];
+        const ok =
+          cardColor(a.suit) !== cardColor(b.suit) &&
+          RANK_ORDER(a) === RANK_ORDER(b) + 1;
+        if (!ok) return null;
+      }
+      return run;
+    },
+    [state],
+  );
+
+  // Which pile (if any) is under the given viewport point.
+  const pileAtPoint = useCallback((cx: number, cy: number): PileId | null => {
+    const hit = (el: HTMLDivElement | null) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+    };
+    for (let i = 0; i < foundationEls.current.length; i++) {
+      if (hit(foundationEls.current[i])) return { kind: "foundation", index: i };
+    }
+    for (let i = 0; i < columnEls.current.length; i++) {
+      if (hit(columnEls.current[i])) return { kind: "tableau", index: i };
+    }
+    return null;
+  }, []);
+
+  const onCardPointerDown = useCallback(
+    (from: PileId, cardIndex: number, e: React.PointerEvent) => {
+      if (autoFinishing || won) return;
+      justDragged.current = false; // fresh gesture
+      const cards = draggableRun(from, cardIndex);
+      if (!cards) return;
+      dragRef.current = {
+        from,
+        cardIndex,
+        cards,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        grabOffsetX: 0,
+        grabOffsetY: 0,
+        active: false,
+        moved: false,
+      };
+    },
+    [autoFinishing, won, draggableRun],
+  );
+
+  // Global pointer move/up while a drag session exists.
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const s = dragRef.current;
+      if (!s || e.pointerId !== s.pointerId) return;
+      const dx = e.clientX - s.startX;
+      const dy = e.clientY - s.startY;
+      if (!s.active && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+      if (!s.active) {
+        s.active = true;
+        s.moved = true;
+        setSelection(null); // a drag cancels any tap-selection
+      }
+      setDrag({
+        cards: s.cards,
+        x: e.clientX - CARD_GRAB_X,
+        y: e.clientY - CARD_GRAB_Y,
+      });
+    };
+
+    const onUp = (e: PointerEvent) => {
+      const s = dragRef.current;
+      if (!s || e.pointerId !== s.pointerId) return;
+      if (s.active) {
+        // Ignore the click that browsers fire right after this pointerup.
+        justDragged.current = true;
+        const target = pileAtPoint(e.clientX, e.clientY);
+        if (target) applyMove(s.from, s.cardIndex, target);
+      }
+      dragRef.current = null;
+      setDrag(null);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [pileAtPoint, applyMove]);
+
+  // Suppress the click that follows a real drag (so it doesn't tap-select).
+  const guardedTap = useCallback(
+    (from: PileId, cardIndex: number) => {
+      if (justDragged.current) {
+        justDragged.current = false;
+        return;
+      }
+      tapCard(from, cardIndex);
+    },
+    [tapCard],
+  );
+
   return (
     <div className="solitaire">
       <header className="app-bar">
@@ -442,14 +596,28 @@ export default function SolitaireScreen() {
                         animate
                         entrance
                         hinted={hintCardIds.has(card.id)}
-                        className="waste-card"
+                        className={`waste-card ${
+                          drag?.cards.some((c) => c.id === card.id)
+                            ? "dragging-src"
+                            : ""
+                        }`}
                         style={{ left: `${i * WASTE_FAN_OFFSET}px` }}
                         selected={
                           isTop && isSelected({ kind: "waste" }, cardIndex)
                         }
+                        onPointerDown={
+                          isTop
+                            ? (e) =>
+                                onCardPointerDown(
+                                  { kind: "waste" },
+                                  cardIndex,
+                                  e,
+                                )
+                            : undefined
+                        }
                         onClick={
                           isTop
-                            ? () => tapCard({ kind: "waste" }, cardIndex)
+                            ? () => guardedTap({ kind: "waste" }, cardIndex)
                             : undefined
                         }
                       />
@@ -468,6 +636,7 @@ export default function SolitaireScreen() {
               return (
                 <div
                   key={i}
+                  ref={(el) => (foundationEls.current[i] = el)}
                   className="pile foundation"
                   onClick={() =>
                     pile.length === 0 ? tapEmptyPile(to) : undefined
@@ -479,7 +648,10 @@ export default function SolitaireScreen() {
                       animate
                       hinted={hintCardIds.has(pile[pile.length - 1].id)}
                       selected={isSelected(to, pile.length - 1)}
-                      onClick={() => tapCard(to, pile.length - 1)}
+                      onPointerDown={(e) =>
+                        onCardPointerDown(to, pile.length - 1, e)
+                      }
+                      onClick={() => guardedTap(to, pile.length - 1)}
                     />
                   ) : (
                     <div className="pile-placeholder foundation-hint">
@@ -498,6 +670,7 @@ export default function SolitaireScreen() {
             return (
               <div
                 key={colIndex}
+                ref={(el) => (columnEls.current[colIndex] = el)}
                 className="tableau-column"
                 onClick={() =>
                   column.length === 0 ? tapEmptyPile(to) : undefined
@@ -506,33 +679,57 @@ export default function SolitaireScreen() {
                 {column.length === 0 && (
                   <div className="pile-placeholder column-empty" />
                 )}
-                {column.map((card, cardIndex) => (
-                  <PlayingCard
-                    key={card.id}
-                    card={card}
-                    animate
-                    // Deal-in stagger only on a fresh board before any move
-                    // (not on resume, and not after moves start).
-                    entrance={freshDeal && moves === 0}
-                    entranceDelay={
-                      freshDeal && moves === 0
-                        ? (colIndex + cardIndex) * DEAL_STAGGER
-                        : 0
-                    }
-                    className="stacked"
-                    style={{ top: `${offsetForIndex(column, cardIndex)}px` }}
-                    hinted={hintCardIds.has(card.id)}
-                    selected={isSelected(to, cardIndex)}
-                    onClick={
-                      card.faceUp ? () => tapCard(to, cardIndex) : undefined
-                    }
-                  />
-                ))}
+                {column.map((card, cardIndex) => {
+                  const dragging = drag?.cards.some((c) => c.id === card.id);
+                  return (
+                    <PlayingCard
+                      key={card.id}
+                      card={card}
+                      animate
+                      // Deal-in stagger only on a fresh board before any move
+                      // (not on resume, and not after moves start).
+                      entrance={freshDeal && moves === 0}
+                      entranceDelay={
+                        freshDeal && moves === 0
+                          ? (colIndex + cardIndex) * DEAL_STAGGER
+                          : 0
+                      }
+                      className={`stacked ${dragging ? "dragging-src" : ""}`}
+                      style={{ top: `${offsetForIndex(column, cardIndex)}px` }}
+                      hinted={hintCardIds.has(card.id)}
+                      selected={isSelected(to, cardIndex)}
+                      onPointerDown={
+                        card.faceUp
+                          ? (e) => onCardPointerDown(to, cardIndex, e)
+                          : undefined
+                      }
+                      onClick={
+                        card.faceUp ? () => guardedTap(to, cardIndex) : undefined
+                      }
+                    />
+                  );
+                })}
               </div>
             );
           })}
         </div>
         </LayoutGroup>
+
+        {drag && (
+          <div
+            className="drag-layer"
+            style={{ transform: `translate(${drag.x}px, ${drag.y}px)` }}
+          >
+            {drag.cards.map((card, i) => (
+              <PlayingCard
+                key={card.id}
+                card={card}
+                className="drag-card"
+                style={{ top: `${i * FACE_UP_OFFSET}px` }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -547,6 +744,16 @@ const DEAL_STAGGER = 0.025;
 
 // Delay between auto-finish steps so cards visibly fly to the foundations.
 const AUTO_FINISH_INTERVAL_MS = 160;
+
+// Where the finger "grabs" the dragged card (roughly its upper-middle), so the
+// floating stack sits naturally under the pointer.
+const CARD_GRAB_X = 30;
+const CARD_GRAB_Y = 24;
+
+// Rank order with Ace low (A=1 ... K=13), for validating a draggable run.
+function RANK_ORDER(card: Card): number {
+  return rankValue(card.rank);
+}
 
 // Cumulative vertical offset for a stacked card: face-down cards sit tighter
 // than face-up cards, so we sum the per-card offset of everything above it.
