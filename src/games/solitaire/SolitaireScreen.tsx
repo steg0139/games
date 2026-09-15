@@ -17,7 +17,7 @@ import {
   newGame,
   nextFoundationMove,
 } from "./logic";
-import { clearGame, loadGame, saveGame } from "./persistence";
+import { type HistoryEntry, clearGame, loadGame, saveGame } from "./persistence";
 import "./Solitaire.css";
 
 interface Selection {
@@ -47,6 +47,11 @@ export default function SolitaireScreen() {
   const recordedResult = useRef(false);
   // A resumed game shouldn't replay the deal-in animation; only fresh deals do.
   const [freshDeal, setFreshDeal] = useState(!resumed.current);
+
+  // Undo history: snapshots of {state, moves} before each move/draw.
+  const [history, setHistory] = useState<HistoryEntry[]>(
+    resumed.current?.history ?? [],
+  );
 
   const [autoFinishing, setAutoFinishing] = useState(false);
   // Lets the player dismiss the "no moves" banner and keep trying the deal,
@@ -108,6 +113,7 @@ export default function SolitaireScreen() {
     setAutoFinishing(false);
     setDismissedDeadEnd(false);
     setFreshDeal(true);
+    setHistory([]);
     startedAt.current = Date.now();
     recordedResult.current = false;
   }, []);
@@ -166,14 +172,16 @@ export default function SolitaireScreen() {
     if (won || deadEnd) {
       clearGame();
     } else {
-      saveGame({ state, moves, startedAt: startedAt.current, drawCount });
+      saveGame({ state, moves, startedAt: startedAt.current, drawCount, history });
     }
-  }, [state, moves, won, deadEnd, drawCount]);
+  }, [state, moves, won, deadEnd, drawCount, history]);
 
   const applyMove = useCallback(
     (from: PileId, cardIndex: number, to: PileId) => {
       const next = moveCard(state, from, cardIndex, to);
       if (next) {
+        // Snapshot the pre-move state for undo.
+        setHistory((h) => [...h, { state, moves }]);
         setState(next);
         setMoves((m) => m + 1);
         // A successful move changes the board; re-arm the dead-end banner so
@@ -182,14 +190,32 @@ export default function SolitaireScreen() {
       }
       setSelection(null);
     },
-    [state],
+    [state, moves],
   );
 
   const handleStock = useCallback(() => {
     if (autoFinishing) return;
-    setState((s) => drawFromStock(s, drawCount));
+    const next = drawFromStock(state, drawCount);
+    if (next === state) return; // no-op (empty stock and waste)
+    // Snapshot before drawing so the draw (and recycle) is undoable.
+    setHistory((h) => [...h, { state, moves }]);
+    setState(next);
     setSelection(null);
-  }, [drawCount, autoFinishing]);
+  }, [state, moves, drawCount, autoFinishing]);
+
+  const undo = useCallback(() => {
+    if (autoFinishing) return;
+    setHistory((h) => {
+      if (h.length === 0) return h;
+      const prev = h[h.length - 1];
+      setState(prev.state);
+      setMoves(prev.moves);
+      setSelection(null);
+      // Undoing out of a dead end means it's no longer stuck.
+      setDismissedDeadEnd(false);
+      return h.slice(0, -1);
+    });
+  }, [autoFinishing]);
 
   // Tap logic: if nothing selected, try auto-move; if that fails, select.
   // If something selected, treat the new tap as a destination.
@@ -250,6 +276,14 @@ export default function SolitaireScreen() {
         </Link>
         <h1>Solitaire</h1>
         <span className="status-line">{moves} moves</span>
+        <button
+          className="icon-btn"
+          onClick={undo}
+          disabled={history.length === 0 || autoFinishing || won}
+          aria-label="Undo last move"
+        >
+          Undo
+        </button>
         {showAutoFinish && (
           <button
             className="btn-primary"

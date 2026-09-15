@@ -5,7 +5,13 @@ import type { DrawCount } from "../../lib/stats/types";
 import type { SolitaireState } from "./logic";
 
 const STORAGE_KEY = "cards.solitaire.game";
-const SAVE_VERSION = 1;
+// Bumped to 2: added undo `history`. Older saves (v1) are ignored on load.
+const SAVE_VERSION = 2;
+
+export interface HistoryEntry {
+  state: SolitaireState;
+  moves: number;
+}
 
 export interface SavedGame {
   version: number;
@@ -13,6 +19,7 @@ export interface SavedGame {
   moves: number;
   startedAt: number; // epoch ms of the original deal
   drawCount: DrawCount;
+  history: HistoryEntry[];
 }
 
 export function loadGame(): SavedGame | null {
@@ -31,7 +38,7 @@ export function loadGame(): SavedGame | null {
     ) {
       return null;
     }
-    return parsed;
+    return { ...parsed, history: parsed.history ?? [] };
   } catch {
     return null;
   }

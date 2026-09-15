@@ -94,6 +94,11 @@ button {
   background: var(--surface-hover);
 }
 
+.icon-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 .btn-primary {
   appearance: none;
   border: none;
