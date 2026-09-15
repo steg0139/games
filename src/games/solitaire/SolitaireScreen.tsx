@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { LayoutGroup } from "framer-motion";
 import PlayingCard from "../../components/PlayingCard";
 import { suitSymbol } from "../../lib/cards";
 import { recordSolitaireResult } from "../../lib/stats/useProfile";
@@ -148,6 +149,7 @@ export default function SolitaireScreen() {
           </div>
         )}
 
+        <LayoutGroup>
         <div className="top-row">
           <div className="stock-waste">
             <div
@@ -157,7 +159,10 @@ export default function SolitaireScreen() {
               aria-label="Draw from stock"
             >
               {state.stock.length > 0 ? (
-                <PlayingCard card={state.stock[state.stock.length - 1]} />
+                <PlayingCard
+                  card={state.stock[state.stock.length - 1]}
+                  animate
+                />
               ) : (
                 <div className="pile-placeholder recycle">↻</div>
               )}
@@ -176,6 +181,7 @@ export default function SolitaireScreen() {
                       <PlayingCard
                         key={card.id}
                         card={card}
+                        animate
                         className="waste-card"
                         style={{ left: `${i * WASTE_FAN_OFFSET}px` }}
                         selected={
@@ -210,6 +216,7 @@ export default function SolitaireScreen() {
                   {pile.length > 0 ? (
                     <PlayingCard
                       card={pile[pile.length - 1]}
+                      animate
                       selected={isSelected(to, pile.length - 1)}
                       onClick={() => tapCard(to, pile.length - 1)}
                     />
@@ -242,6 +249,7 @@ export default function SolitaireScreen() {
                   <PlayingCard
                     key={card.id}
                     card={card}
+                    animate
                     className="stacked"
                     style={{ top: `${offsetForIndex(column, cardIndex)}px` }}
                     selected={isSelected(to, cardIndex)}
@@ -254,6 +262,7 @@ export default function SolitaireScreen() {
             );
           })}
         </div>
+        </LayoutGroup>
       </div>
     </div>
   );

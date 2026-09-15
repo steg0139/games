@@ -57,7 +57,7 @@
   width: calc(var(--card-w) + 28px);
 }
 
-.pile.waste .card.waste-card {
+.pile.waste .card-outer.waste-card {
   position: absolute;
   top: 0;
 }
@@ -96,7 +96,7 @@
   flex: 1;
 }
 
-.tableau-column .card.stacked {
+.tableau-column .card-outer.stacked {
   position: absolute;
   left: 0;
 }

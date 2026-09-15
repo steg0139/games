@@ -96,6 +96,8 @@ export default function BlackjackScreen() {
                 <PlayingCard
                   key={`${card.id}-${i}`}
                   card={card}
+                  entrance
+                  layoutId={null}
                   className="hand-card"
                 />
               ))
@@ -123,6 +125,8 @@ export default function BlackjackScreen() {
                 <PlayingCard
                   key={`${card.id}-${i}`}
                   card={card}
+                  entrance
+                  layoutId={null}
                   className="hand-card"
                 />
               ))
