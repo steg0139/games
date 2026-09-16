@@ -120,5 +120,7 @@ export const APP_VERSION =
 export const APP_SHA = typeof __APP_SHA__ !== "undefined" ? __APP_SHA__ : "dev";
 export const CODENAME = codenameFor(RELEASE);
 
-/** Full label, e.g. `v0.1.0 "Apricot" · a1dcafe`. */
-export const VERSION_LABEL = `v${APP_VERSION} "${CODENAME}" · ${APP_SHA}`;
+/** Visible label, e.g. `Apricot · a1dcafe` (codename + build SHA). The
+ *  package.json semantic version (APP_VERSION) is kept for internal reference
+ *  but intentionally not shown, since it's bumped manually. */
+export const VERSION_LABEL = `${CODENAME} · ${APP_SHA}`;
