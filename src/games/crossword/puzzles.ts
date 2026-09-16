@@ -3,6 +3,8 @@
 // runtime. Answers are letters only, uppercase. Clues are hand-authored
 // (Phase 1 starter set — not professional-grade; expand this list over time).
 
+import generated from "./generated-puzzles.json";
+
 export interface WordClue {
   answer: string;
   clue: string;
@@ -13,7 +15,9 @@ export interface Puzzle {
   words: WordClue[];
 }
 
-export const PUZZLES: Puzzle[] = [
+// Hand-authored themed puzzles (kept for their nicer titles/clues), followed by
+// the build-time WordNet-generated set (see scripts/generate-crosswords.mjs).
+const HAND_AUTHORED: Puzzle[] = [
   {
     title: "Everyday",
     words: [
@@ -156,3 +160,11 @@ export const PUZZLES: Puzzle[] = [
     ],
   },
 ];
+
+// Generated puzzles have no theme title; give them a generic daily label.
+const GENERATED: Puzzle[] = (generated as { words: WordClue[] }[]).map((p) => ({
+  title: "Daily Mix",
+  words: p.words,
+}));
+
+export const PUZZLES: Puzzle[] = [...HAND_AUTHORED, ...GENERATED];

@@ -1,8 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import Crossword from "@jaredreisinger/react-crossword";
+import Crossword, {
+  type CrosswordImperative,
+} from "@jaredreisinger/react-crossword";
 import { recordCrosswordComplete } from "../../lib/stats/useProfile";
 import {
+  type CrosswordData,
   buildCrosswordData,
   dailyId,
   dayNumber,
@@ -21,6 +24,25 @@ const CROSSWORD_THEME = {
   highlightBackground: "#bae6fd",
 };
 
+/** Flatten crossword data into every filled grid cell with its letter. */
+function gridCells(data: CrosswordData): { row: number; col: number; letter: string }[] {
+  const cells = new Map<string, { row: number; col: number; letter: string }>();
+  const add = (r: number, c: number, letter: string) => {
+    cells.set(`${r},${c}`, { row: r, col: c, letter });
+  };
+  for (const entry of Object.values(data.across)) {
+    for (let i = 0; i < entry.answer.length; i++) {
+      add(entry.row, entry.col + i, entry.answer[i]);
+    }
+  }
+  for (const entry of Object.values(data.down)) {
+    for (let i = 0; i < entry.answer.length; i++) {
+      add(entry.row + i, entry.col, entry.answer[i]);
+    }
+  }
+  return [...cells.values()];
+}
+
 export default function CrosswordScreen() {
   const today = useMemo(() => new Date(), []);
   const id = dailyId(today);
@@ -31,6 +53,8 @@ export default function CrosswordScreen() {
   );
 
   const [solved, setSolved] = useState(false);
+  const crosswordRef = useRef<CrosswordImperative>(null);
+  const revealed = useRef<Set<string>>(new Set());
 
   const onComplete = useCallback(
     (correct: boolean) => {
@@ -41,6 +65,19 @@ export default function CrosswordScreen() {
     },
     [today],
   );
+
+  // Reveal one letter: pick a grid cell we haven't revealed yet and fill it in
+  // with the correct letter via the imperative API.
+  const revealLetter = useCallback(() => {
+    const cells = gridCells(data);
+    const remaining = cells.filter(
+      (c) => !revealed.current.has(`${c.row},${c.col}`),
+    );
+    if (remaining.length === 0) return;
+    const pick = remaining[Math.floor(Math.random() * remaining.length)];
+    revealed.current.add(`${pick.row},${pick.col}`);
+    crosswordRef.current?.setGuess(pick.row, pick.col, pick.letter);
+  }, [data]);
 
   const dateLabel = today.toLocaleDateString(undefined, {
     weekday: "long",
@@ -55,6 +92,14 @@ export default function CrosswordScreen() {
           ←
         </Link>
         <h1>Daily Crossword</h1>
+        <button
+          className="icon-btn"
+          onClick={revealLetter}
+          disabled={solved}
+          aria-label="Reveal a letter"
+        >
+          Reveal
+        </button>
       </header>
 
       <div className="cw-body">
@@ -78,6 +123,7 @@ export default function CrosswordScreen() {
         <div className="cw-grid-wrap">
           <Crossword
             key={id}
+            ref={crosswordRef}
             data={data}
             useStorage
             theme={CROSSWORD_THEME}

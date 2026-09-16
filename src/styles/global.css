@@ -120,3 +120,13 @@ button {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+
+.route-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 40px;
+}

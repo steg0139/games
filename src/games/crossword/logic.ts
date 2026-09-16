@@ -27,10 +27,35 @@ export function dailyId(date: Date = new Date()): string {
   return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-/** The puzzle for a given day, rotating through the library. */
+// A deterministic shuffle of puzzle indices so the daily order is well-mixed
+// (not 0,1,2,…) but identical for everyone. Seeded, computed once.
+function seededOrder(n: number): number[] {
+  const order = Array.from({ length: n }, (_, i) => i);
+  // xmur-style seeded PRNG.
+  let seed = 0x9e3779b9;
+  const rand = () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+
+const ORDER = seededOrder(PUZZLES.length);
+
+/** The puzzle for a given day: walks a shuffled order over the full library,
+ *  so consecutive days feel varied and it only repeats after the whole set
+ *  cycles (~PUZZLES.length days). */
 export function puzzleForDay(date: Date = new Date()): Puzzle {
-  const idx = ((dayNumber(date) % PUZZLES.length) + PUZZLES.length) % PUZZLES.length;
-  return PUZZLES[idx];
+  const d = dayNumber(date);
+  const idx = ((d % ORDER.length) + ORDER.length) % ORDER.length;
+  return PUZZLES[ORDER[idx]];
 }
 
 interface LayoutItem {
