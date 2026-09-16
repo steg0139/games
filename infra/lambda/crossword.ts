@@ -25,6 +25,7 @@ const generateLayout =
 
 const WORDS_PER_PUZZLE = 16;
 const MIN_PLACED = 10;
+const NO_REPEAT_DAYS = 60; // don't reuse a word within this many days
 
 interface WordClue {
   answer: string;
@@ -79,11 +80,23 @@ function mulberry32(seed: number) {
   };
 }
 
-/** Build a puzzle deterministically from a numeric seed. */
-function generatePuzzle(seed: number): Puzzle {
+/**
+ * Build a puzzle deterministically from a numeric seed, drawing only from words
+ * not in `exclude` (the words used in the last NO_REPEAT_DAYS). Returns the
+ * puzzle and the set of answer words it actually used (to record for future
+ * exclusion). If the available pool is somehow too small, falls back to the
+ * full pool so we never fail to produce a puzzle.
+ */
+function generatePuzzle(
+  seed: number,
+  exclude: Set<string>,
+): { puzzle: Puzzle; words: string[] } {
   const rand = mulberry32(seed);
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const shuffled = POOL.slice();
+  const available = POOL.filter((w) => !exclude.has(w.answer));
+  const usable = available.length >= WORDS_PER_PUZZLE * 3 ? available : POOL;
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const shuffled = usable.slice();
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -97,20 +110,22 @@ function generatePuzzle(seed: number): Puzzle {
 
     const across: Record<number, PuzzleCell> = {};
     const down: Record<number, PuzzleCell> = {};
+    const used: string[] = [];
     for (const item of placed) {
+      const answer = item.answer.toUpperCase();
+      used.push(answer);
       const cell: PuzzleCell = {
         clue: item.clue,
-        answer: item.answer.toUpperCase(),
+        answer,
         row: item.starty - 1,
         col: item.startx - 1,
       };
       if (item.orientation === "across") across[item.position] = cell;
       else down[item.position] = cell;
     }
-    return { across, down };
+    return { puzzle: { across, down }, words: used };
   }
-  // Extremely unlikely; return a minimal puzzle rather than throw.
-  return { across: {}, down: {} };
+  return { puzzle: { across: {}, down: {} }, words: [] };
 }
 
 /** Days since the Unix epoch (UTC) — the canonical daily index. */
@@ -126,30 +141,55 @@ function dateKey(d = new Date()): string {
     .slice(0, 10);
 }
 
-async function getStored(date: string): Promise<Puzzle | null> {
+interface StoredDay {
+  puzzle: Puzzle;
+  words: string[];
+}
+
+async function getStored(date: string): Promise<StoredDay | null> {
   const res = await ddb.send(
     new GetCommand({ TableName: TABLE_NAME, Key: { PK: `CROSSWORD#${date}`, SK: "PUZZLE" } }),
   );
-  return (res.Item?.puzzle as Puzzle) ?? null;
+  if (!res.Item?.puzzle) return null;
+  return { puzzle: res.Item.puzzle as Puzzle, words: (res.Item.words as string[]) ?? [] };
 }
 
-async function storePuzzle(date: string, puzzle: Puzzle): Promise<void> {
+async function storeDay(date: string, day: StoredDay): Promise<void> {
   await ddb.send(
     new PutCommand({
       TableName: TABLE_NAME,
-      Item: { PK: `CROSSWORD#${date}`, SK: "PUZZLE", date, puzzle },
+      Item: { PK: `CROSSWORD#${date}`, SK: "PUZZLE", date, ...day },
     }),
   );
 }
 
-/** Get (or generate+store) the canonical puzzle for a date. */
+/** Words used across the NO_REPEAT_DAYS days before `date`, to exclude. */
+async function recentWords(beforeDayNum: number): Promise<Set<string>> {
+  const used = new Set<string>();
+  // Read each prior day's stored puzzle (cheap point reads; ~60 of them).
+  const reads: Promise<StoredDay | null>[] = [];
+  for (let i = 1; i <= NO_REPEAT_DAYS; i++) {
+    const d = new Date((beforeDayNum - i) * 86_400_000).toISOString().slice(0, 10);
+    reads.push(getStored(d));
+  }
+  for (const day of await Promise.all(reads)) {
+    if (day) for (const w of day.words) used.add(w);
+  }
+  return used;
+}
+
+/** Get (or generate+store) the canonical puzzle for today. */
 async function todaysPuzzle(): Promise<{ date: string; puzzle: Puzzle }> {
   const date = dateKey();
   const existing = await getStored(date);
-  if (existing) return { date, puzzle: existing };
-  // Seed by the UTC day number so on-demand and cron produce the same puzzle.
-  const puzzle = generatePuzzle(dayNumberUTC());
-  await storePuzzle(date, puzzle);
+  if (existing) return { date, puzzle: existing.puzzle };
+
+  const dayNum = dayNumberUTC();
+  const exclude = await recentWords(dayNum);
+  // Seed by the UTC day number so on-demand and cron produce the same puzzle
+  // (both see the same prior-60-day exclusion set once the day has started).
+  const { puzzle, words } = generatePuzzle(dayNum, exclude);
+  await storeDay(date, { puzzle, words });
   return { date, puzzle };
 }
 
@@ -163,8 +203,11 @@ export const handler = async (
   const path = event.requestContext?.http?.path ?? event.rawPath ?? "";
   try {
     if (path.endsWith("/crossword/random")) {
-      // Practice: a fresh random puzzle, not stored.
-      const puzzle = generatePuzzle(Math.floor(Math.random() * 2 ** 31));
+      // Practice: a fresh random puzzle, not stored, no exclusions.
+      const { puzzle } = generatePuzzle(
+        Math.floor(Math.random() * 2 ** 31),
+        new Set(),
+      );
       return json(200, { date: null, puzzle });
     }
     // Default: today's canonical puzzle.
