@@ -74,7 +74,16 @@
   margin: 0 auto;
 }
 
-.cw-grid-wrap .grid,
+/* The library's GridWrapper (.grid) is `display:flex; flex:2 1 50%` — meant to
+   sit beside the clue list. On its own it stretches tall (to the viewport),
+   leaving a huge gap below the square SVG. Force it to hug its content. */
+.cw-grid-wrap .grid {
+  display: block !important;
+  flex: none !important;
+  height: auto !important;
+  width: 100% !important;
+}
+
 .cw-grid-wrap .grid > div {
   /* Kill inline-box whitespace so the wrapper hugs the svg exactly. */
   line-height: 0;
