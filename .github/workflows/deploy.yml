@@ -48,8 +48,12 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # --- Tests first: a failure aborts before anything is deployed. -----
+      # Use `npm install` rather than `npm ci`: a known npm bug drops the
+      # `optional` flag on esbuild's platform packages in the lockfile, which
+      # makes `npm ci` hard-fail with EBADPLATFORM on Linux. `npm install`
+      # correctly skips platform-incompatible optional deps.
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Run tests
         run: npm test
