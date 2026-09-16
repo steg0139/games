@@ -346,37 +346,39 @@ function productiveTableauTarget(
   return -1;
 }
 
-/** True if any *productive* tableau move exists (foundation play or useful shift). */
-function hasTableauMove(state: SolitaireState): boolean {
+/**
+ * True if ANY legal move exists right now (no drawing) — including moves that
+ * aren't "productive" (e.g. a lateral shuffle). This is the correct basis for
+ * dead-end detection: as long as a single legal move exists, the game is NOT
+ * stuck. (Contrast with productiveTableauTarget, the stricter "productive"
+ * standard used only for hints, which does NOT gate dead-end detection.)
+ */
+export function hasAnyLegalMove(state: SolitaireState): boolean {
+  // Any face-up run head to any tableau column or (single card) foundation.
   for (let c = 0; c < 7; c++) {
     const col = state.tableau[c];
     for (let r = 0; r < col.length; r++) {
       if (!col[r].faceUp) continue;
       const run = faceUpRunFrom(col, r);
       if (!run) continue;
-
-      // A single card to a foundation is always genuine progress.
-      if (run.length === 1 && cardFitsAnyFoundation(run[0], state)) return true;
-
-      // A productive tableau→tableau move.
-      if (productiveTableauTarget(state, c, r, run) !== -1) return true;
+      const head = run[0];
+      if (run.length === 1 && cardFitsAnyFoundation(head, state)) return true;
+      // Any legal tableau landing counts — but ignore the no-op of relocating a
+      // whole-column King onto another empty column (that changes nothing).
+      const kingWholeColumn = r === 0 && head.rank === "K";
+      for (let t = 0; t < 7; t++) {
+        if (t === c) continue;
+        const tcol = state.tableau[t];
+        if (!canStackOnTableau(head, tcol[tcol.length - 1])) continue;
+        if (kingWholeColumn && tcol.length === 0) continue; // empty->empty no-op
+        return true;
+      }
     }
   }
-  return false;
-}
-
-/**
- * True if a move can be made RIGHT NOW (no drawing): a productive tableau move,
- * or the current waste top playing to a foundation or tableau. This is the
- * "immediate move" signal; the dead-end decision also considers stock cycling
- * separately via runtime tracking in the screen.
- */
-export function hasImmediateMove(state: SolitaireState): boolean {
-  if (hasTableauMove(state)) return true;
+  // Current waste top can play.
   const top = state.waste[state.waste.length - 1];
-  if (top) {
-    if (cardFitsAnyFoundation(top, state)) return true;
-    if (cardFitsAnyTableau(top, state)) return true;
+  if (top && (cardFitsAnyFoundation(top, state) || cardFitsAnyTableau(top, state))) {
+    return true;
   }
   return false;
 }
@@ -395,9 +397,21 @@ export function isDeadEnd(
   stockCycledWithoutProgress: boolean,
 ): boolean {
   if (isWon(state)) return false;
-  if (hasImmediateMove(state)) return false;
+  // Any legal move at all means not stuck (not just "productive" ones).
+  if (hasAnyLegalMove(state)) return false;
+  // Also not stuck if some stock/waste card could be played once surfaced.
+  for (const card of [...state.stock, ...state.waste]) {
+    if (cardFitsAnyFoundation(card, state) || cardFitsAnyTableau(card, state)) {
+      // A playable card is somewhere in the stock/waste. Only truly stuck once
+      // a full no-progress cycle proves it can't be reached (draw-three), and
+      // never while the player hasn't yet cycled the whole stock.
+      return stockCycledWithoutProgress;
+    }
+  }
+  // No move now and nothing in stock/waste can ever play: dead once we've also
+  // confirmed there's no drawing left to change things.
   const stockLeft = state.stock.length + state.waste.length;
-  if (stockLeft === 0) return true; // nothing to draw and no move
+  if (stockLeft === 0) return true;
   return stockCycledWithoutProgress;
 }
 
