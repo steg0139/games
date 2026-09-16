@@ -14,18 +14,34 @@ export interface Selection {
   col: number;
 }
 
+export interface ActiveClue {
+  direction: "across" | "down";
+  number: string;
+  text: string;
+}
+
 /**
  * Custom on-screen keyboard that drives react-crossword through its context's
  * `handleInputKeyDown`. Using our own keyboard means the OS keyboard never
  * opens — no password/credit-card/location autofill prompts, and nothing can
  * cover the grid or clue bar.
  */
+interface ClueEntry {
+  number: string;
+  clue: string;
+}
+
 export default function CrosswordKeyboard({
   selectionRef,
+  onActiveClue,
 }: {
   // Kept updated with the currently focused cell so the parent's Reveal can
   // target it.
   selectionRef: MutableRefObject<Selection | null>;
+  // Reports the clue for the currently selected cell (updates on every cell
+  // tap / arrow move — react-crossword's onClueSelected only fires on clue-list
+  // clicks, so we derive it from context instead).
+  onActiveClue: (clue: ActiveClue | null) => void;
 }) {
   const ctx = useContext(CrosswordContext) as unknown as {
     handleInputKeyDown: (e: {
@@ -34,7 +50,10 @@ export default function CrosswordKeyboard({
       stopPropagation: () => void;
     }) => void;
     selectedPosition?: { row: number; col: number };
+    selectedDirection?: "across" | "down";
+    selectedNumber?: string;
     focused?: boolean;
+    clues?: { across: ClueEntry[]; down: ClueEntry[] };
   };
 
   // Mirror the focused cell into the ref for the parent's Reveal button.
@@ -45,6 +64,18 @@ export default function CrosswordKeyboard({
         ? { row: pos.row, col: pos.col }
         : selectionRef.current;
   }, [ctx.selectedPosition, ctx.focused, selectionRef]);
+
+  // Report the active clue for the current selection (cell taps + moves).
+  useEffect(() => {
+    const dir = ctx.selectedDirection;
+    const num = ctx.selectedNumber;
+    if (!ctx.focused || !dir || !num || !ctx.clues) {
+      onActiveClue(null);
+      return;
+    }
+    const entry = ctx.clues[dir]?.find((c) => c.number === num);
+    onActiveClue(entry ? { direction: dir, number: num, text: entry.clue } : null);
+  }, [ctx.selectedDirection, ctx.selectedNumber, ctx.focused, ctx.clues, onActiveClue]);
 
   // Suppress the native keyboard: mark the crossword's hidden input so mobile
   // browsers don't pop their own keyboard when it's focused.

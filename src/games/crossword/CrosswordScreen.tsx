@@ -7,7 +7,10 @@ import {
   type CrosswordProviderImperative,
 } from "@jaredreisinger/react-crossword";
 import { recordCrosswordComplete } from "../../lib/stats/useProfile";
-import CrosswordKeyboard, { type Selection } from "./CrosswordKeyboard";
+import CrosswordKeyboard, {
+  type ActiveClue,
+  type Selection,
+} from "./CrosswordKeyboard";
 import {
   type CrosswordData,
   buildCrosswordData,
@@ -17,9 +20,6 @@ import {
 } from "./logic";
 import { PUZZLES } from "./puzzles";
 import "./Crossword.css";
-
-// The library's Direction type isn't re-exported from the root; it's just this.
-type Direction = "across" | "down";
 
 // Theme tuned for readable contrast (active clue text stays legible).
 const CROSSWORD_THEME = {
@@ -31,12 +31,6 @@ const CROSSWORD_THEME = {
   focusBackground: "#38bdf8",
   highlightBackground: "#a5d8ef",
 };
-
-interface ActiveClue {
-  direction: Direction;
-  number: string;
-  text: string;
-}
 
 /** Every filled grid cell with its correct letter. */
 function gridCells(data: CrosswordData) {
@@ -130,15 +124,6 @@ export default function CrosswordScreen() {
     setPracticeSeed(null);
   }, []);
 
-  const onClueSelected = useCallback(
-    (direction: Direction, number: string) => {
-      const entry =
-        direction === "across" ? data.across[+number] : data.down[+number];
-      if (entry) setActive({ direction, number, text: entry.clue });
-    },
-    [data],
-  );
-
   const onCellChange = useCallback((row: number, col: number, char: string) => {
     const key = `${row},${col}`;
     if (char) guesses.current.set(key, char);
@@ -199,7 +184,6 @@ export default function CrosswordScreen() {
         storageKey={`crossword-${id}`}
         theme={CROSSWORD_THEME}
         onCrosswordComplete={onComplete}
-        onClueSelected={onClueSelected}
         onCellChange={onCellChange}
       >
         <header className="app-bar">
@@ -288,8 +272,12 @@ export default function CrosswordScreen() {
               )}
             </div>
             {/* Our own keyboard (drives the grid via context). No OS keyboard,
-                so no autofill prompts and nothing covers the grid or clue. */}
-            <CrosswordKeyboard selectionRef={selectionRef} />
+                so no autofill prompts and nothing covers the grid or clue. It
+                also reports the active clue for the current cell. */}
+            <CrosswordKeyboard
+              selectionRef={selectionRef}
+              onActiveClue={setActive}
+            />
           </div>
         )}
       </CrosswordProvider>

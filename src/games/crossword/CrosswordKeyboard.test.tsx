@@ -10,11 +10,14 @@ function renderWithContext(handleInputKeyDown: (e: unknown) => void) {
   const ctxValue = {
     handleInputKeyDown,
     selectedPosition: { row: 0, col: 0 },
+    selectedDirection: "across",
+    selectedNumber: "1",
     focused: true,
+    clues: { across: [{ number: "1", clue: "test clue" }], down: [] },
   } as unknown as React.ContextType<typeof CrosswordContext>;
   render(
     <CrosswordContext.Provider value={ctxValue}>
-      <CrosswordKeyboard selectionRef={selectionRef} />
+      <CrosswordKeyboard selectionRef={selectionRef} onActiveClue={() => {}} />
     </CrosswordContext.Provider>,
   );
   return selectionRef;
@@ -40,5 +43,28 @@ describe("CrosswordKeyboard", () => {
     const handler = vi.fn();
     const selectionRef = renderWithContext(handler);
     expect(selectionRef.current).toEqual({ row: 0, col: 0 });
+  });
+
+  it("reports the active clue for the current selection", () => {
+    const onActiveClue = vi.fn();
+    const selectionRef = { current: null as Selection | null };
+    const ctxValue = {
+      handleInputKeyDown: () => {},
+      selectedPosition: { row: 0, col: 0 },
+      selectedDirection: "across",
+      selectedNumber: "1",
+      focused: true,
+      clues: { across: [{ number: "1", clue: "test clue" }], down: [] },
+    } as unknown as React.ContextType<typeof CrosswordContext>;
+    render(
+      <CrosswordContext.Provider value={ctxValue}>
+        <CrosswordKeyboard selectionRef={selectionRef} onActiveClue={onActiveClue} />
+      </CrosswordContext.Provider>,
+    );
+    expect(onActiveClue).toHaveBeenCalledWith({
+      direction: "across",
+      number: "1",
+      text: "test clue",
+    });
   });
 });
