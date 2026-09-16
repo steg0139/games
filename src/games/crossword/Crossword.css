@@ -72,8 +72,12 @@
   margin: 0 auto;
 }
 
-.cw-grid-wrap .grid {
+.cw-grid-wrap .grid,
+.cw-grid-wrap .grid > div {
   width: 100%;
+  /* Kill any inline-box whitespace so the wrapper hugs the svg exactly. */
+  line-height: 0;
+  font-size: 0;
 }
 
 .cw-grid-wrap svg {
