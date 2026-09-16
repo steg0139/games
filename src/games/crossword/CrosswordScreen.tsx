@@ -22,7 +22,11 @@ import { PUZZLES } from "./puzzles";
 import "./Crossword.css";
 
 // Theme tuned for readable contrast (active clue text stays legible).
+// allowNonSquare: render the grid at its true rows×cols instead of forcing a
+// square — otherwise a wide-or-tall puzzle pads out to a square, leaving a big
+// block of empty cells below the actual words.
 const CROSSWORD_THEME = {
+  allowNonSquare: true,
   gridBackground: "#0c3325",
   cellBackground: "#f8fafc",
   cellBorder: "#94a3b8",
