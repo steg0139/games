@@ -2,14 +2,15 @@
 //
 // Releases get an alphabetical codename that cycles through food categories:
 // fruits, then vegetables, then meats, then dairy, then grains, then wraps.
-// Bump RELEASE by one each time you cut a release to advance the codename.
 //
-// The package version and git short SHA are injected at build time (see
-// vite.config.ts define). The SHA uniquely identifies the exact deployed build
-// for precise "are you on the latest?" checks; the codename is the human label.
+// The release index advances automatically — one bump per CI deploy — derived
+// from the count of release-* git tags and injected at build time (see
+// vite.config.ts / deploy workflow). Local builds fall back to 0 ("Apple").
+// The package version and git short SHA are also injected at build time; the
+// SHA identifies the exact deployed build for precise "latest?" checks.
 
-// Increment this by 1 per release. 0 = the first name ("Apple").
-export const RELEASE = 0;
+export const RELEASE =
+  typeof __APP_RELEASE__ !== "undefined" ? __APP_RELEASE__ : 0;
 
 // Ordered categories; names within each are alphabetical.
 const CODENAMES: string[] = [

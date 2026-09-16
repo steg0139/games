@@ -13,10 +13,18 @@ function gitShortSha(): string {
   }
 }
 
+// Release index for the codename. Set by CI (one bump per deploy, from the
+// count of release-* git tags); falls back to 0 ("Apple") for local builds.
+function releaseIndex(): number {
+  const n = Number(process.env.RELEASE_INDEX);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_SHA__: JSON.stringify(gitShortSha()),
+    __APP_RELEASE__: JSON.stringify(releaseIndex()),
   },
   plugins: [
     react(),

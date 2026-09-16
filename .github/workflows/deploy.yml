@@ -17,9 +17,23 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to push the release-* tag
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so we can count release-* tags
+          fetch-tags: true
+
+      - name: Compute release index
+        id: release
+        run: |
+          # One codename bump per deploy: the release index is the number of
+          # existing release-* tags. First deploy = 0 ("Apple").
+          COUNT=$(git tag -l 'release-*' | wc -l | tr -d ' ')
+          echo "index=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Release index for this deploy: $COUNT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -63,6 +77,7 @@ jobs:
       - name: Build frontend
         env:
           VITE_API_BASE_URL: ${{ steps.api.outputs.api_url }}
+          RELEASE_INDEX: ${{ steps.release.outputs.index }}
         run: npm run build
 
       # --- Hosting -------------------------------------------------------
@@ -116,9 +131,20 @@ jobs:
             --distribution-id "${{ steps.hosting.outputs.dist_id }}" \
             --paths "/*"
 
+      # Record this deploy so the next one gets the next codename. Tag pushes
+      # don't re-trigger this workflow (it's on: push branches), so no loop.
+      - name: Tag this release
+        run: |
+          INDEX="${{ steps.release.outputs.index }}"
+          TAG="release-$INDEX"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Pushed $TAG"
+
       - name: Summary
         run: |
           echo "### Deployed :rocket:" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release index: ${{ steps.release.outputs.index }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- API: ${{ steps.api.outputs.api_url }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Site: ${{ steps.hosting.outputs.site_url }}" >> "$GITHUB_STEP_SUMMARY"
