@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { shareApp } from "../lib/pwa";
 import "./Home.css";
 
 interface GameEntry {
@@ -30,10 +32,29 @@ const GAMES: GameEntry[] = [
 ];
 
 export default function Home() {
+  const [toast, setToast] = useState<string | null>(null);
+
+  const onShare = async () => {
+    const result = await shareApp();
+    if (result === "copied") {
+      setToast("Link copied");
+      setTimeout(() => setToast(null), 1800);
+    } else if (result === "unavailable") {
+      setToast("Couldn't share");
+      setTimeout(() => setToast(null), 1800);
+    }
+    // "shared" uses the native sheet; no toast needed.
+  };
+
   return (
     <div className="home">
       <header className="home-header">
-        <h1>Card Games</h1>
+        <div className="home-title-row">
+          <h1>Card Games</h1>
+          <button className="share-btn" onClick={onShare} aria-label="Share">
+            <span aria-hidden>↗</span> Share
+          </button>
+        </div>
         <p>A small, clean collection. Pick something to play.</p>
       </header>
 
@@ -60,6 +81,8 @@ export default function Home() {
         </Link>
         <span>Add to Home Screen to play offline.</span>
       </footer>
+
+      {toast && <div className="home-toast">{toast}</div>}
     </div>
   );
 }
