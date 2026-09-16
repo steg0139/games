@@ -4,6 +4,7 @@ import {
   type Profile,
   type Settings,
   emptyBlackjackStats,
+  emptyCrosswordStats,
   emptySolitaireStats,
   emptyVideoPokerStats,
 } from "./types";
@@ -32,7 +33,7 @@ export function clearProfile(): Promise<void> {
   return profileStore.clear();
 }
 
-export type GameKey = "solitaire" | "blackjack" | "videopoker";
+export type GameKey = "solitaire" | "blackjack" | "videopoker" | "crossword";
 
 /**
  * Reset stats for a single game, keeping the other games' stats and all
@@ -43,7 +44,8 @@ export function resetGameStats(game: GameKey): void {
   profileStore.update((p) => {
     if (game === "solitaire") return { ...p, solitaire: emptySolitaireStats() };
     if (game === "blackjack") return { ...p, blackjack: emptyBlackjackStats() };
-    return { ...p, videopoker: emptyVideoPokerStats() };
+    if (game === "videopoker") return { ...p, videopoker: emptyVideoPokerStats() };
+    return { ...p, crossword: emptyCrosswordStats() };
   });
 }
 
@@ -104,5 +106,22 @@ export function recordVideoPokerHand(result: {
     v.bestPayout = Math.max(v.bestPayout, result.payout);
     v.bestBankroll = Math.max(v.bestBankroll, result.bankroll);
     return { ...p, videopoker: v };
+  });
+}
+
+/** Record completing today's crossword. `day` is the dayNumber; streak counts
+ *  consecutive days. Idempotent: completing the same day again is a no-op. */
+export function recordCrosswordComplete(day: number): void {
+  profileStore.update((p) => {
+    const c = { ...p.crossword };
+    if (c.lastCompletedDay === day) return p; // already recorded today
+    c.completed += 1;
+    c.currentStreak =
+      c.lastCompletedDay !== null && day === c.lastCompletedDay + 1
+        ? c.currentStreak + 1
+        : 1;
+    c.bestStreak = Math.max(c.bestStreak, c.currentStreak);
+    c.lastCompletedDay = day;
+    return { ...p, crossword: c };
   });
 }

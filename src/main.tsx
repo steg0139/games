@@ -6,6 +6,7 @@ import Home from "./screens/Home";
 import SolitaireScreen from "./games/solitaire/SolitaireScreen";
 import BlackjackScreen from "./games/blackjack/BlackjackScreen";
 import VideoPokerScreen from "./games/videopoker/VideoPokerScreen";
+import CrosswordScreen from "./games/crossword/CrosswordScreen";
 import Stats from "./screens/Stats";
 import "./styles/global.css";
 
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
       { path: "solitaire", element: <SolitaireScreen /> },
       { path: "blackjack", element: <BlackjackScreen /> },
       { path: "videopoker", element: <VideoPokerScreen /> },
+      { path: "crossword", element: <CrosswordScreen /> },
       { path: "stats", element: <Stats /> },
     ],
   },

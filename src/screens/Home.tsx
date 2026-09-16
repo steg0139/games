@@ -30,6 +30,12 @@ const GAMES: GameEntry[] = [
     blurb: "Jacks or Better. Hold, draw, and hit a paying hand.",
     suits: "♣ ♠",
   },
+  {
+    to: "/crossword",
+    title: "Daily Crossword",
+    blurb: "A fresh interlocking puzzle every day.",
+    suits: "▦",
+  },
 ];
 
 export default function Home() {

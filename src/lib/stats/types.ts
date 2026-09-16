@@ -26,6 +26,13 @@ export interface VideoPokerStats {
   bestPayout: number; // largest single-hand payout
 }
 
+export interface CrosswordStats {
+  completed: number; // puzzles fully solved
+  currentStreak: number; // consecutive days completed
+  bestStreak: number;
+  lastCompletedDay: number | null; // dayNumber of last completion (for streak)
+}
+
 /** Solitaire draw mode: flip 1 or 3 cards from the stock per draw. */
 export type DrawCount = 1 | 3;
 
@@ -42,6 +49,7 @@ export interface Profile {
   solitaire: SolitaireStats;
   blackjack: BlackjackStats;
   videopoker: VideoPokerStats;
+  crossword: CrosswordStats;
   updatedAt: number; // epoch ms of last local mutation
 }
 
@@ -78,6 +86,15 @@ export function emptyVideoPokerStats(): VideoPokerStats {
   };
 }
 
+export function emptyCrosswordStats(): CrosswordStats {
+  return {
+    completed: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    lastCompletedDay: null,
+  };
+}
+
 export function defaultProfile(): Profile {
   return {
     version: PROFILE_VERSION,
@@ -89,6 +106,7 @@ export function defaultProfile(): Profile {
     solitaire: emptySolitaireStats(),
     blackjack: emptyBlackjackStats(),
     videopoker: emptyVideoPokerStats(),
+    crossword: emptyCrosswordStats(),
     updatedAt: 0,
   };
 }

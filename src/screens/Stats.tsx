@@ -65,6 +65,7 @@ export default function Stats() {
   const s = profile.solitaire;
   const b = profile.blackjack;
   const v = profile.videopoker;
+  const x = profile.crossword;
 
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -198,6 +199,31 @@ export default function Stats() {
             onAsk={() => setConfirmingGame("videopoker")}
             onCancel={() => setConfirmingGame(null)}
             onConfirm={() => handleResetGame("videopoker")}
+          />
+        </section>
+
+        <section className="stats-section">
+          <h2>▦ Daily Crossword</h2>
+          <div className="stat-grid">
+            <div className="stat">
+              <div className="value">{x.completed}</div>
+              <div className="label">Completed</div>
+            </div>
+            <div className="stat">
+              <div className="value">{x.currentStreak}</div>
+              <div className="label">Current streak</div>
+            </div>
+            <div className="stat">
+              <div className="value">{x.bestStreak}</div>
+              <div className="label">Best streak</div>
+            </div>
+          </div>
+          <GameResetControl
+            game="crossword"
+            confirming={confirmingGame === "crossword"}
+            onAsk={() => setConfirmingGame("crossword")}
+            onCancel={() => setConfirmingGame(null)}
+            onConfirm={() => handleResetGame("crossword")}
           />
         </section>
 
