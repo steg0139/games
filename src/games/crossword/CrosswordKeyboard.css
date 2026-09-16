@@ -1,0 +1,42 @@
+.cw-keyboard {
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  padding: 6px 4px calc(var(--safe-bottom) + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  user-select: none;
+}
+
+.cw-kb-row {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.cw-key {
+  flex: 1;
+  max-width: 34px;
+  height: 46px;
+  border: none;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s ease;
+}
+
+.cw-key:active {
+  background: var(--accent-strong);
+  color: #04202e;
+}
+
+.cw-key-wide {
+  max-width: 52px;
+  font-size: 18px;
+}

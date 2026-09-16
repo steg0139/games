@@ -7,10 +7,7 @@ import {
   type CrosswordProviderImperative,
 } from "@jaredreisinger/react-crossword";
 import { recordCrosswordComplete } from "../../lib/stats/useProfile";
-
-// The library's Direction type isn't re-exported from the root; it's just this.
-type Direction = "across" | "down";
-
+import CrosswordKeyboard, { type Selection } from "./CrosswordKeyboard";
 import {
   type CrosswordData,
   buildCrosswordData,
@@ -19,6 +16,9 @@ import {
   puzzleForDay,
 } from "./logic";
 import "./Crossword.css";
+
+// The library's Direction type isn't re-exported from the root; it's just this.
+type Direction = "across" | "down";
 
 // Theme tuned for readable contrast (active clue text stays legible).
 const CROSSWORD_THEME = {
@@ -67,6 +67,8 @@ export default function CrosswordScreen() {
   const revealed = useRef<Set<string>>(new Set());
   // Track the player's current entries: "row,col" -> guessed char.
   const guesses = useRef<Map<string, string>>(new Map());
+  // Currently focused cell, mirrored from the crossword context by the keyboard.
+  const selectionRef = useRef<Selection | null>(null);
 
   // One-time cleanup: earlier builds stored progress under the default
   // "guesses" key (shared across days), which could load the wrong puzzle's
@@ -122,11 +124,22 @@ export default function CrosswordScreen() {
   }, [data]);
 
   const revealLetter = useCallback(() => {
-    const remaining = gridCells(data).filter(
-      (c) => !revealed.current.has(`${c.row},${c.col}`),
-    );
-    if (remaining.length === 0) return;
-    const pick = remaining[Math.floor(Math.random() * remaining.length)];
+    const cells = gridCells(data);
+    const byPos = new Map(cells.map((c) => [`${c.row},${c.col}`, c]));
+
+    // Prefer the currently selected cell.
+    const sel = selectionRef.current;
+    let pick = sel ? byPos.get(`${sel.row},${sel.col}`) : undefined;
+
+    // Otherwise reveal any not-yet-revealed cell.
+    if (!pick) {
+      const remaining = cells.filter(
+        (c) => !revealed.current.has(`${c.row},${c.col}`),
+      );
+      if (remaining.length === 0) return;
+      pick = remaining[Math.floor(Math.random() * remaining.length)];
+    }
+
     revealed.current.add(`${pick.row},${pick.col}`);
     guesses.current.set(`${pick.row},${pick.col}`, pick.letter);
     cwRef.current?.setGuess(pick.row, pick.col, pick.letter);
@@ -218,6 +231,10 @@ export default function CrosswordScreen() {
             </div>
           )}
         </div>
+
+        {/* Our own keyboard (drives the grid via context). No OS keyboard, so
+            no autofill prompts and nothing covers the grid or clue bar. */}
+        {!solved && <CrosswordKeyboard selectionRef={selectionRef} />}
       </CrosswordProvider>
     </div>
   );

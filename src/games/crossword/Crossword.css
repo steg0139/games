@@ -1,12 +1,17 @@
 .crossword {
-  flex: 1;
+  /* Bound to the viewport so only the body scrolls and the clue bar/keyboard
+     stay pinned. dvh accounts for mobile browser chrome. */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .cw-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 14px 16px 16px;
   max-width: 560px;
