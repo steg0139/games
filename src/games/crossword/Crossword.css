@@ -8,8 +8,8 @@
 .cw-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 16px calc(var(--safe-bottom) + 24px);
-  max-width: 640px;
+  padding: 14px 16px 16px;
+  max-width: 560px;
   margin: 0 auto;
   width: 100%;
 }
@@ -18,7 +18,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .cw-date {
@@ -37,34 +37,97 @@
   margin-top: 4px;
 }
 
+.cw-solved,
+.cw-check {
+  text-align: center;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .cw-solved {
   background: var(--accent-strong);
   color: #04202e;
-  font-weight: 600;
-  text-align: center;
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 14px;
 }
 
-/* Constrain the grid so it doesn't dominate on wide screens; the clue lists
-   from react-crossword stack below it responsively. */
-.cw-grid-wrap {
-  max-width: 100%;
-}
-
-/* react-crossword renders its clue text; make it readable on our dark bg. */
-.cw-grid-wrap .clue,
-.cw-grid-wrap .direction .header {
+.cw-check {
+  background: var(--surface);
+  border: 1px solid var(--border);
   color: var(--text);
 }
 
-.cw-grid-wrap .clue {
-  padding: 4px 6px;
-  border-radius: 6px;
+/* Keep the grid a comfortable size and centered. */
+.cw-grid-wrap {
+  max-width: 380px;
+  margin: 0 auto;
 }
 
-.cw-grid-wrap .direction .header {
+/* Clue list (collapsible, below the grid) */
+.cw-clues-toggle {
+  display: block;
+  margin: 16px auto 0;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cw-clue-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.cw-clue-lists .direction .header {
   font-weight: 700;
-  margin-top: 10px;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.cw-clue-lists .clue {
+  color: var(--text);
+  padding: 3px 4px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+/* Sticky current-clue bar — always visible above the on-screen keyboard. */
+.cw-current-clue {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  padding: 12px 16px calc(var(--safe-bottom) + 12px);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.cw-current-dir {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--accent);
+}
+
+.cw-current-text {
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.cw-current-text.muted {
+  color: var(--text-muted);
 }

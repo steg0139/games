@@ -1,9 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import Crossword, {
-  type CrosswordImperative,
+import {
+  CrosswordProvider,
+  CrosswordGrid,
+  DirectionClues,
+  type CrosswordProviderImperative,
 } from "@jaredreisinger/react-crossword";
 import { recordCrosswordComplete } from "../../lib/stats/useProfile";
+
+// The library's Direction type isn't re-exported from the root; it's just this.
+type Direction = "across" | "down";
+
 import {
   type CrosswordData,
   buildCrosswordData,
@@ -13,33 +20,32 @@ import {
 } from "./logic";
 import "./Crossword.css";
 
-// Theme matching the app's dark slate look.
+// Theme tuned for readable contrast (active clue text stays legible).
 const CROSSWORD_THEME = {
   gridBackground: "#0c3325",
   cellBackground: "#f8fafc",
-  cellBorder: "#cbd5e1",
+  cellBorder: "#94a3b8",
   textColor: "#1e293b",
   numberColor: "#64748b",
-  focusBackground: "#7dd3fc",
-  highlightBackground: "#bae6fd",
+  focusBackground: "#38bdf8",
+  highlightBackground: "#a5d8ef",
 };
 
-/** Flatten crossword data into every filled grid cell with its letter. */
-function gridCells(data: CrosswordData): { row: number; col: number; letter: string }[] {
+interface ActiveClue {
+  direction: Direction;
+  number: string;
+  text: string;
+}
+
+/** Every filled grid cell with its correct letter. */
+function gridCells(data: CrosswordData) {
   const cells = new Map<string, { row: number; col: number; letter: string }>();
-  const add = (r: number, c: number, letter: string) => {
+  const add = (r: number, c: number, letter: string) =>
     cells.set(`${r},${c}`, { row: r, col: c, letter });
-  };
-  for (const entry of Object.values(data.across)) {
-    for (let i = 0; i < entry.answer.length; i++) {
-      add(entry.row, entry.col + i, entry.answer[i]);
-    }
-  }
-  for (const entry of Object.values(data.down)) {
-    for (let i = 0; i < entry.answer.length; i++) {
-      add(entry.row + i, entry.col, entry.answer[i]);
-    }
-  }
+  for (const e of Object.values(data.across))
+    for (let i = 0; i < e.answer.length; i++) add(e.row, e.col + i, e.answer[i]);
+  for (const e of Object.values(data.down))
+    for (let i = 0; i < e.answer.length; i++) add(e.row + i, e.col, e.answer[i]);
   return [...cells.values()];
 }
 
@@ -53,30 +59,66 @@ export default function CrosswordScreen() {
   );
 
   const [solved, setSolved] = useState(false);
-  const crosswordRef = useRef<CrosswordImperative>(null);
+  const [active, setActive] = useState<ActiveClue | null>(null);
+  const [checkMsg, setCheckMsg] = useState<string | null>(null);
+  const [showClues, setShowClues] = useState(false);
+
+  const cwRef = useRef<CrosswordProviderImperative>(null);
   const revealed = useRef<Set<string>>(new Set());
+  // Track the player's current entries: "row,col" -> guessed char.
+  const guesses = useRef<Map<string, string>>(new Map());
 
   const onComplete = useCallback(
     (correct: boolean) => {
       if (correct) {
         setSolved(true);
+        setCheckMsg(null);
         recordCrosswordComplete(dayNumber(today));
       }
     },
     [today],
   );
 
-  // Reveal one letter: pick a grid cell we haven't revealed yet and fill it in
-  // with the correct letter via the imperative API.
-  const revealLetter = useCallback(() => {
+  const onClueSelected = useCallback(
+    (direction: Direction, number: string) => {
+      const entry =
+        direction === "across" ? data.across[+number] : data.down[+number];
+      if (entry) setActive({ direction, number, text: entry.clue });
+    },
+    [data],
+  );
+
+  const onCellChange = useCallback((row: number, col: number, char: string) => {
+    const key = `${row},${col}`;
+    if (char) guesses.current.set(key, char);
+    else guesses.current.delete(key);
+    setCheckMsg(null); // typing invalidates a prior check result
+  }, []);
+
+  const check = useCallback(() => {
     const cells = gridCells(data);
-    const remaining = cells.filter(
+    let filled = 0;
+    let wrong = 0;
+    for (const c of cells) {
+      const g = guesses.current.get(`${c.row},${c.col}`);
+      if (!g) continue;
+      filled++;
+      if (g.toUpperCase() !== c.letter.toUpperCase()) wrong++;
+    }
+    if (filled === 0) setCheckMsg("Fill in some letters first.");
+    else if (wrong === 0) setCheckMsg("Everything filled in so far is correct.");
+    else setCheckMsg(`${wrong} of ${filled} filled letters ${wrong === 1 ? "is" : "are"} wrong.`);
+  }, [data]);
+
+  const revealLetter = useCallback(() => {
+    const remaining = gridCells(data).filter(
       (c) => !revealed.current.has(`${c.row},${c.col}`),
     );
     if (remaining.length === 0) return;
     const pick = remaining[Math.floor(Math.random() * remaining.length)];
     revealed.current.add(`${pick.row},${pick.col}`);
-    crosswordRef.current?.setGuess(pick.row, pick.col, pick.letter);
+    guesses.current.set(`${pick.row},${pick.col}`, pick.letter);
+    cwRef.current?.setGuess(pick.row, pick.col, pick.letter);
   }, [data]);
 
   const dateLabel = today.toLocaleDateString(undefined, {
@@ -87,50 +129,86 @@ export default function CrosswordScreen() {
 
   return (
     <div className="crossword">
-      <header className="app-bar">
-        <Link to="/" className="icon-btn" aria-label="Back to menu">
-          ←
-        </Link>
-        <h1>Daily Crossword</h1>
-        <button
-          className="icon-btn"
-          onClick={revealLetter}
-          disabled={solved}
-          aria-label="Reveal a letter"
-        >
-          Reveal
-        </button>
-      </header>
+      <CrosswordProvider
+        key={id}
+        ref={cwRef}
+        data={data}
+        useStorage
+        theme={CROSSWORD_THEME}
+        onCrosswordComplete={onComplete}
+        onClueSelected={onClueSelected}
+        onCellChange={onCellChange}
+      >
+        <header className="app-bar">
+          <Link to="/" className="icon-btn" aria-label="Back to menu">
+            ←
+          </Link>
+          <h1>Daily Crossword</h1>
+          <button className="icon-btn" onClick={check} disabled={solved}>
+            Check
+          </button>
+          <button className="icon-btn" onClick={revealLetter} disabled={solved}>
+            Reveal
+          </button>
+        </header>
 
-      <div className="cw-body">
-        <div className="cw-heading">
-          <span className="cw-date">{dateLabel}</span>
-          <span className="cw-title">{puzzle.title}</span>
-          {placed < total && (
-            <span className="cw-note">
-              {placed} of {total} words fit today's grid
-            </span>
+        <div className="cw-body">
+          <div className="cw-heading">
+            <span className="cw-date">{dateLabel}</span>
+            <span className="cw-title">{puzzle.title}</span>
+            {placed < total && (
+              <span className="cw-note">
+                {placed} of {total} words fit today's grid
+              </span>
+            )}
+          </div>
+
+          {solved && (
+            <div className="cw-solved" role="status">
+              Solved! Come back tomorrow for a new puzzle.
+            </div>
+          )}
+          {checkMsg && !solved && (
+            <div className="cw-check" role="status">
+              {checkMsg}
+            </div>
+          )}
+
+          <div className="cw-grid-wrap">
+            <CrosswordGrid />
+          </div>
+
+          <button
+            className="cw-clues-toggle"
+            onClick={() => setShowClues((s) => !s)}
+          >
+            {showClues ? "Hide all clues" : "Show all clues"}
+          </button>
+          {showClues && (
+            <div className="cw-clue-lists">
+              <DirectionClues direction="across" />
+              <DirectionClues direction="down" />
+            </div>
           )}
         </div>
 
-        {solved && (
-          <div className="cw-solved" role="status">
-            Solved! Come back tomorrow for a new puzzle.
-          </div>
-        )}
-
-        {/* Keyed by day so each day's progress is stored separately. */}
-        <div className="cw-grid-wrap">
-          <Crossword
-            key={id}
-            ref={crosswordRef}
-            data={data}
-            useStorage
-            theme={CROSSWORD_THEME}
-            onCrosswordComplete={onComplete}
-          />
+        {/* Sticky current-clue bar: always visible above the keyboard so you
+            never scroll to find the clue you're typing. */}
+        <div className="cw-current-clue">
+          {active ? (
+            <>
+              <span className="cw-current-dir">
+                {active.number} {active.direction}
+              </span>
+              <span className="cw-current-text">{active.text}</span>
+            </>
+          ) : (
+            <span className="cw-current-text muted">
+              Tap a cell to start
+            </span>
+          )}
         </div>
-      </div>
+      </CrosswordProvider>
     </div>
   );
 }
