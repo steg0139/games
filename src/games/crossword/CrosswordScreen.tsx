@@ -80,7 +80,6 @@ export default function CrosswordScreen() {
   const [solved, setSolved] = useState(false);
   const [active, setActive] = useState<ActiveClue | null>(null);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
-  const [showClues, setShowClues] = useState(false);
 
   const cwRef = useRef<CrosswordProviderImperative>(null);
   const revealed = useRef<Set<string>>(new Set());
@@ -279,18 +278,10 @@ export default function CrosswordScreen() {
             <CrosswordGrid />
           </div>
 
-          <button
-            className="cw-clues-toggle"
-            onClick={() => setShowClues((s) => !s)}
-          >
-            {showClues ? "Hide all clues" : "Show all clues"}
-          </button>
-          {showClues && (
-            <div className="cw-clue-lists">
-              <DirectionClues direction="across" />
-              <DirectionClues direction="down" />
-            </div>
-          )}
+          <div className="cw-clue-lists">
+            <DirectionClues direction="across" />
+            <DirectionClues direction="down" />
+          </div>
         </div>
 
         {/* Our own keyboard (drives the grid via context). No OS keyboard, so

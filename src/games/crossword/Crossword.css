@@ -65,29 +65,16 @@
 
 /* Keep the grid a comfortable size and centered. */
 .cw-grid-wrap {
-  max-width: 380px;
+  max-width: 340px;
   margin: 0 auto;
 }
 
-/* Clue list (collapsible, below the grid) */
-.cw-clues-toggle {
-  display: block;
-  margin: 16px auto 0;
-  appearance: none;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
+/* Clue lists, always shown below the grid. */
 .cw-clue-lists {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-top: 14px;
+  margin-top: 18px;
   font-size: 13px;
 }
 
@@ -109,9 +96,13 @@
    never hidden behind it. It sits outside .cw-body so it doesn't scroll away. */
 .cw-current-clue {
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 15;
   display: flex;
   align-items: baseline;
   gap: 10px;
+  min-height: 44px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
   padding: 12px 16px;
