@@ -15,6 +15,7 @@ import {
   dayNumber,
   puzzleForDay,
 } from "./logic";
+import { PUZZLES } from "./puzzles";
 import "./Crossword.css";
 
 // The library's Direction type isn't re-exported from the root; it's just this.
@@ -51,8 +52,26 @@ function gridCells(data: CrosswordData) {
 
 export default function CrosswordScreen() {
   const today = useMemo(() => new Date(), []);
-  const id = dailyId(today);
-  const puzzle = useMemo(() => puzzleForDay(today), [today]);
+
+  // Practice mode: a random puzzle that doesn't touch the daily's saved
+  // progress or stats. `practiceSeed` bumps to load a fresh random puzzle.
+  const [practiceSeed, setPracticeSeed] = useState<number | null>(null);
+  const isPractice = practiceSeed !== null;
+
+  const dailyPuzzle = useMemo(() => puzzleForDay(today), [today]);
+  const practicePuzzle = useMemo(
+    () => PUZZLES[Math.floor(Math.random() * PUZZLES.length)],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [practiceSeed],
+  );
+  const puzzle = isPractice ? practicePuzzle : dailyPuzzle;
+
+  // Storage key: per-day for the daily; ephemeral per-session for practice
+  // (so practice never collides with or overwrites daily progress).
+  const id = isPractice
+    ? `practice-${practiceSeed}`
+    : dailyId(today);
+
   const { data, placed, total } = useMemo(
     () => buildCrosswordData(puzzle),
     [puzzle],
@@ -86,11 +105,31 @@ export default function CrosswordScreen() {
       if (correct) {
         setSolved(true);
         setCheckMsg(null);
-        recordCrosswordComplete(dayNumber(today));
+        // Practice puzzles don't count toward stats or streaks.
+        if (!isPractice) recordCrosswordComplete(dayNumber(today));
       }
     },
-    [today],
+    [today, isPractice],
   );
+
+  // Start a fresh practice puzzle / return to the daily. Resets per-game state.
+  const startPractice = useCallback(() => {
+    revealed.current = new Set();
+    guesses.current = new Map();
+    setSolved(false);
+    setCheckMsg(null);
+    setActive(null);
+    setPracticeSeed((n) => (n ?? 0) + 1);
+  }, []);
+
+  const exitPractice = useCallback(() => {
+    revealed.current = new Set();
+    guesses.current = new Map();
+    setSolved(false);
+    setCheckMsg(null);
+    setActive(null);
+    setPracticeSeed(null);
+  }, []);
 
   const onClueSelected = useCallback(
     (direction: Direction, number: string) => {
@@ -157,7 +196,7 @@ export default function CrosswordScreen() {
         key={id}
         ref={cwRef}
         data={data}
-        useStorage
+        useStorage={!isPractice}
         storageKey={`crossword-${id}`}
         theme={CROSSWORD_THEME}
         onCrosswordComplete={onComplete}
@@ -168,7 +207,7 @@ export default function CrosswordScreen() {
           <Link to="/" className="icon-btn" aria-label="Back to menu">
             ←
           </Link>
-          <h1>Daily Crossword</h1>
+          <h1>{isPractice ? "Practice" : "Daily Crossword"}</h1>
           <button className="icon-btn" onClick={check} disabled={solved}>
             Check
           </button>
@@ -194,18 +233,40 @@ export default function CrosswordScreen() {
 
         <div className="cw-body">
           <div className="cw-heading">
-            <span className="cw-date">{dateLabel}</span>
+            <span className="cw-date">
+              {isPractice ? "Practice puzzle" : dateLabel}
+            </span>
             <span className="cw-title">{puzzle.title}</span>
             {placed < total && (
               <span className="cw-note">
-                {placed} of {total} words fit today's grid
+                {placed} of {total} words fit this grid
               </span>
+            )}
+          </div>
+
+          {/* Practice controls (temporary — for testing puzzles). */}
+          <div className="cw-practice-row">
+            {isPractice ? (
+              <>
+                <button className="icon-btn" onClick={startPractice}>
+                  New practice puzzle
+                </button>
+                <button className="icon-btn" onClick={exitPractice}>
+                  Back to daily
+                </button>
+              </>
+            ) : (
+              <button className="icon-btn" onClick={startPractice}>
+                Practice a random puzzle
+              </button>
             )}
           </div>
 
           {solved && (
             <div className="cw-solved" role="status">
-              Solved! Come back tomorrow for a new puzzle.
+              {isPractice
+                ? "Solved! Try another practice puzzle."
+                : "Solved! Come back tomorrow for a new puzzle."}
             </div>
           )}
           {checkMsg && !solved && (

@@ -1,6 +1,6 @@
 /// <reference types="vitest/config" />
 import { execSync } from "node:child_process";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import pkg from "./package.json";
@@ -37,8 +37,17 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      // "prompt" lets us control the update flow (auto-reload on reopen, banner
+      // while active) via the registerSW onNeedRefresh callback.
+      registerType: "prompt",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
+      workbox: {
+        // Activate a new service worker immediately and take control, so the
+        // update we then reload into is the fresh one.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+      },
       manifest: {
         name: "Card Games",
         short_name: "Cards",

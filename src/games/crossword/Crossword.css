@@ -136,3 +136,16 @@
 .cw-current-text.muted {
   color: var(--text-muted);
 }
+
+/* Practice mode controls (temporary). */
+.cw-practice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cw-practice-row .icon-btn {
+  font-size: 13px;
+  padding: 7px 12px;
+}
