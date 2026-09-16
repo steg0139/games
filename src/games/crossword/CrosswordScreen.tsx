@@ -164,6 +164,21 @@ export default function CrosswordScreen() {
           </button>
         </header>
 
+        {/* Current-clue bar pinned at the top (below the app bar) so the phone
+            keyboard — always at the bottom — can never cover it. */}
+        <div className="cw-current-clue">
+          {active ? (
+            <>
+              <span className="cw-current-dir">
+                {active.number} {active.direction}
+              </span>
+              <span className="cw-current-text">{active.text}</span>
+            </>
+          ) : (
+            <span className="cw-current-text muted">Tap a cell to start</span>
+          )}
+        </div>
+
         <div className="cw-body">
           <div className="cw-heading">
             <span className="cw-date">{dateLabel}</span>
@@ -201,23 +216,6 @@ export default function CrosswordScreen() {
               <DirectionClues direction="across" />
               <DirectionClues direction="down" />
             </div>
-          )}
-        </div>
-
-        {/* Sticky current-clue bar: always visible above the keyboard so you
-            never scroll to find the clue you're typing. */}
-        <div className="cw-current-clue">
-          {active ? (
-            <>
-              <span className="cw-current-dir">
-                {active.number} {active.direction}
-              </span>
-              <span className="cw-current-text">{active.text}</span>
-            </>
-          ) : (
-            <span className="cw-current-text muted">
-              Tap a cell to start
-            </span>
           )}
         </div>
       </CrosswordProvider>
