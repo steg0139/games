@@ -77,10 +77,28 @@ export default function CrosswordKeyboard({
     onActiveClue(entry ? { direction: dir, number: num, text: entry.clue } : null);
   }, [ctx.selectedDirection, ctx.selectedNumber, ctx.focused, ctx.clues, onActiveClue]);
 
-  // Note: there's no native/OS keyboard to suppress anymore — the custom grid
-  // (CrosswordGridCustom) renders no <input>, so mobile browsers never pop
-  // their own keyboard or autofill. Typing flows entirely through this
-  // component's press() → ctx.handleInputKeyDown.
+  // Suppress the native keyboard: mark the crossword's hidden input so mobile
+  // browsers don't pop their own keyboard when it's focused.
+  useEffect(() => {
+    const suppress = () => {
+      const input = document.querySelector<HTMLInputElement>(
+        'input[aria-label="crossword-input"]',
+      );
+      if (input) {
+        // inputmode="none" keeps the input focusable (so the library's cell
+        // selection still works) but tells the browser not to show its virtual
+        // keyboard. autocomplete=off + a neutral name avoid autofill prompts.
+        input.setAttribute("inputmode", "none");
+        input.setAttribute("autocapitalize", "characters");
+        input.setAttribute("autocomplete", "off");
+        input.setAttribute("name", "crossword-cell");
+      }
+    };
+    suppress();
+    // The input is (re)created as the player moves; keep enforcing it.
+    const timer = setInterval(suppress, 500);
+    return () => clearInterval(timer);
+  }, []);
 
   const press = useCallback(
     (key: string) => {

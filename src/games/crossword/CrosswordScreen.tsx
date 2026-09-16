@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CrosswordProvider,
+  CrosswordGrid,
   DirectionClues,
   type CrosswordProviderImperative,
 } from "@jaredreisinger/react-crossword";
-import CrosswordGridCustom from "./CrosswordGridCustom";
 import { recordCrosswordComplete } from "../../lib/stats/useProfile";
 import CrosswordKeyboard, {
   type ActiveClue,
@@ -291,7 +291,7 @@ export default function CrosswordScreen() {
           )}
 
           <div className="cw-grid-wrap">
-            <CrosswordGridCustom />
+            <CrosswordGrid />
           </div>
 
           <div className="cw-clue-lists">
