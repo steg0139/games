@@ -63,27 +63,12 @@
   color: var(--text);
 }
 
-/* react-crossword's <svg> has no width/height, so it defaults to ~300px —
-   causing the side gaps and the empty space below the grid. Force it to fill
-   the container width; height follows the viewBox aspect ratio. `display:block`
-   removes the inline-SVG baseline gap. Target the GridWrapper (.grid) + svg. */
+/* The grid is now a real CSS grid (CrosswordGridCustom), which fills this
+   wrapper's width and sizes its own height via aspect-ratio — no more fixed
+   SVG and no empty gap below the puzzle. */
 .cw-grid-wrap {
   width: 100%;
   margin: 0 auto;
-}
-
-.cw-grid-wrap .grid,
-.cw-grid-wrap .grid > div {
-  width: 100%;
-  /* Kill any inline-box whitespace so the wrapper hugs the svg exactly. */
-  line-height: 0;
-  font-size: 0;
-}
-
-.cw-grid-wrap svg {
-  display: block;
-  width: 100%;
-  height: auto;
 }
 
 /* Clue lists, always shown below the grid. */

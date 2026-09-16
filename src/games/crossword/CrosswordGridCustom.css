@@ -1,0 +1,70 @@
+/* Custom crossword grid — a real CSS grid that fills the available width and
+   keeps cells square via the wrapper's aspect-ratio. Replaces the library's
+   fixed-size SVG so there's no empty gap below the puzzle. */
+
+.cwc-grid {
+  display: grid;
+  width: 100%;
+  max-width: min(100%, 30rem);
+  margin: 0 auto;
+  /* aspect-ratio + equal fr tracks keep every cell square */
+  gap: 1px;
+  background: #94a3b8; /* shows through as cell borders */
+  border: 1px solid #94a3b8;
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
+
+.cwc-cell {
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Blank (unused) cells are the dark grid background. */
+.cwc-cell-blank {
+  background: #0c3325;
+}
+
+.cwc-cell-used {
+  background: #f8fafc;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  font-weight: 600;
+  /* Letter scales with the cell. */
+  font-size: min(5vw, 1.4rem);
+  line-height: 1;
+}
+
+.cwc-cell-highlight {
+  background: #a5d8ef;
+}
+
+.cwc-cell-focus {
+  background: #38bdf8;
+}
+
+.cwc-number {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  font-size: min(2.4vw, 0.6rem);
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.cwc-cell-focus .cwc-number,
+.cwc-cell-highlight .cwc-number {
+  color: #334155;
+}
+
+.cwc-guess {
+  text-transform: uppercase;
+  pointer-events: none;
+}
