@@ -68,6 +68,17 @@ export default function CrosswordScreen() {
   // Track the player's current entries: "row,col" -> guessed char.
   const guesses = useRef<Map<string, string>>(new Map());
 
+  // One-time cleanup: earlier builds stored progress under the default
+  // "guesses" key (shared across days), which could load the wrong puzzle's
+  // letters. Remove it so per-day keys are the only source of truth.
+  useMemo(() => {
+    try {
+      localStorage.removeItem("guesses");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const onComplete = useCallback(
     (correct: boolean) => {
       if (correct) {
@@ -134,6 +145,7 @@ export default function CrosswordScreen() {
         ref={cwRef}
         data={data}
         useStorage
+        storageKey={`crossword-${id}`}
         theme={CROSSWORD_THEME}
         onCrosswordComplete={onComplete}
         onClueSelected={onClueSelected}
