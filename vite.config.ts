@@ -42,9 +42,9 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       workbox: {
-        // Activate a new service worker immediately and take control, so the
-        // update we then reload into is the fresh one.
-        skipWaiting: true,
+        // Do NOT skipWaiting here: in "prompt" mode the new SW should wait so
+        // onNeedRefresh fires; our updateSW(true) call then triggers
+        // skip-waiting on demand and reloads into the new version.
         clientsClaim: true,
         cleanupOutdatedCaches: true,
       },

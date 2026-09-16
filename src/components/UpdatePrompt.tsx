@@ -4,42 +4,59 @@ import "./UpdatePrompt.css";
 
 /**
  * Handles PWA updates:
- *  - When a new version is available and the app is REOPENED (tab becomes
- *    visible again), auto-reload into it once — no manual pull-to-refresh.
- *  - While the app is actively open, show a non-intrusive banner so we don't
- *    yank the page out from under someone mid-move.
+ *  - Actively checks for a new service worker on load and whenever the app is
+ *    reopened (tab/PWA becomes visible), because an installed PWA resuming does
+ *    not otherwise re-check — which is why updates needed manual refreshing.
+ *  - When an update is found: if the app was just reopened (not actively in
+ *    focus), reload straight into it; if the user is actively using the app,
+ *    show a non-intrusive "reload" banner instead of yanking the page.
  */
 export default function UpdatePrompt() {
   const [updateReady, setUpdateReady] = useState(false);
-  const updateSW = useRef<((reload?: boolean) => Promise<void>) | null>(null);
+  const updateSWRef = useRef<((reload?: boolean) => Promise<void>) | null>(null);
+  const registrationRef = useRef<ServiceWorkerRegistration | undefined>(undefined);
+  const updateReadyRef = useRef(false);
   const reloadedOnce = useRef(false);
 
+  // Register the service worker exactly once.
   useEffect(() => {
-    updateSW.current = registerSW({
+    updateSWRef.current = registerSW({
+      onRegisteredSW(_swUrl, registration) {
+        registrationRef.current = registration;
+        // Check right away in case a new version shipped since last load.
+        void registration?.update();
+      },
       onNeedRefresh() {
+        updateReadyRef.current = true;
         setUpdateReady(true);
-        // If the app isn't currently in focus (e.g. it's being reopened), apply
-        // immediately. Otherwise the banner + visibility handler take over.
-        if (document.visibilityState !== "visible") {
-          applyUpdate();
-        }
+        // Reopened (not actively focused) -> apply immediately. Actively in
+        // use -> the banner (below) lets the user choose.
+        if (document.visibilityState !== "visible") applyUpdate();
       },
     });
 
+    // On reopen/focus: ask the SW to check for a new version. If one is already
+    // pending, apply it now.
     const onVisible = () => {
-      if (document.visibilityState === "visible" && updateReady) {
+      if (document.visibilityState !== "visible") return;
+      if (updateReadyRef.current) {
         applyUpdate();
+      } else {
+        void registrationRef.current?.update();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateReady]);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, []);
 
   const applyUpdate = () => {
     if (reloadedOnce.current) return; // guard against reload loops
     reloadedOnce.current = true;
-    void updateSW.current?.(true); // activate new SW and reload
+    void updateSWRef.current?.(true); // activate new SW and reload
   };
 
   if (!updateReady) return null;
