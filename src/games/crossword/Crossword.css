@@ -63,10 +63,18 @@
   color: var(--text);
 }
 
-/* Keep the grid a comfortable size and centered. */
+/* Grid fills the available width. react-crossword's SVG keeps the puzzle's
+   own aspect ratio, so a wide-short puzzle stays short (no square padding). */
 .cw-grid-wrap {
-  max-width: 340px;
+  width: 100%;
   margin: 0 auto;
+}
+
+/* Override react-crossword's default wrapper sizing so the grid fills width
+   and doesn't reserve extra (square-ish) space that leaves a gap below it. */
+.cw-grid-wrap > div {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 /* Clue lists, always shown below the grid. */
@@ -94,19 +102,21 @@
 /* Current-clue bar — fixed row directly below the app bar, above the scrolling
    play area. The keyboard is always at the bottom, so a top-anchored clue is
    never hidden behind it. It sits outside .cw-body so it doesn't scroll away. */
-.cw-current-clue {
+/* Bottom dock: current clue + keyboard, pinned together below the play area.
+   Because the clue sits directly on top of our own keyboard, it's always
+   visible right where you type and can never be covered. */
+.cw-dock {
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 15;
+}
+
+.cw-current-clue {
   display: flex;
   align-items: baseline;
   gap: 10px;
   min-height: 44px;
   background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
 }
 
 .cw-current-dir {

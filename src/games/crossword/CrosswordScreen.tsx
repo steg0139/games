@@ -215,21 +215,6 @@ export default function CrosswordScreen() {
           </button>
         </header>
 
-        {/* Current-clue bar pinned at the top (below the app bar) so the phone
-            keyboard — always at the bottom — can never cover it. */}
-        <div className="cw-current-clue">
-          {active ? (
-            <>
-              <span className="cw-current-dir">
-                {active.number} {active.direction}
-              </span>
-              <span className="cw-current-text">{active.text}</span>
-            </>
-          ) : (
-            <span className="cw-current-text muted">Tap a cell to start</span>
-          )}
-        </div>
-
         <div className="cw-body">
           <div className="cw-heading">
             <span className="cw-date">
@@ -284,9 +269,29 @@ export default function CrosswordScreen() {
           </div>
         </div>
 
-        {/* Our own keyboard (drives the grid via context). No OS keyboard, so
-            no autofill prompts and nothing covers the grid or clue bar. */}
-        {!solved && <CrosswordKeyboard selectionRef={selectionRef} />}
+        {/* Current clue pinned directly above our keyboard, so it's always
+            visible right where you're typing. */}
+        {!solved && (
+          <div className="cw-dock">
+            <div className="cw-current-clue">
+              {active ? (
+                <>
+                  <span className="cw-current-dir">
+                    {active.number} {active.direction}
+                  </span>
+                  <span className="cw-current-text">{active.text}</span>
+                </>
+              ) : (
+                <span className="cw-current-text muted">
+                  Tap a cell to start
+                </span>
+              )}
+            </div>
+            {/* Our own keyboard (drives the grid via context). No OS keyboard,
+                so no autofill prompts and nothing covers the grid or clue. */}
+            <CrosswordKeyboard selectionRef={selectionRef} />
+          </div>
+        )}
       </CrosswordProvider>
     </div>
   );
