@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CrosswordProvider,
@@ -11,14 +11,12 @@ import CrosswordKeyboard, {
   type ActiveClue,
   type Selection,
 } from "./CrosswordKeyboard";
+import { type CrosswordData } from "./logic";
 import {
-  type CrosswordData,
-  buildCrosswordData,
-  dailyId,
-  dayNumber,
-  puzzleForDay,
-} from "./logic";
-import { PUZZLES } from "./puzzles";
+  getRandomPuzzle,
+  getTodaysPuzzle,
+  todayKey,
+} from "./client";
 import "./Crossword.css";
 
 // Theme tuned for readable contrast (active clue text stays legible).
@@ -48,32 +46,51 @@ function gridCells(data: CrosswordData) {
   return [...cells.values()];
 }
 
+type LoadState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; data: CrosswordData; storageId: string };
+
 export default function CrosswordScreen() {
   const today = useMemo(() => new Date(), []);
 
-  // Practice mode: a random puzzle that doesn't touch the daily's saved
-  // progress or stats. `practiceSeed` bumps to load a fresh random puzzle.
+  // Practice mode: a random puzzle from the backend that doesn't touch the
+  // daily's saved progress or stats. `practiceSeed` bumps to load a new one.
   const [practiceSeed, setPracticeSeed] = useState<number | null>(null);
   const isPractice = practiceSeed !== null;
 
-  const dailyPuzzle = useMemo(() => puzzleForDay(today), [today]);
-  const practicePuzzle = useMemo(
-    () => PUZZLES[Math.floor(Math.random() * PUZZLES.length)],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [practiceSeed],
-  );
-  const puzzle = isPractice ? practicePuzzle : dailyPuzzle;
+  // The puzzle is fetched from the backend (daily is canonical + cached).
+  const [load, setLoad] = useState<LoadState>({ status: "loading" });
 
-  // Storage key: per-day for the daily; ephemeral per-session for practice
-  // (so practice never collides with or overwrites daily progress).
-  const id = isPractice
-    ? `practice-${practiceSeed}`
-    : dailyId(today);
+  useEffect(() => {
+    let cancelled = false;
+    setLoad({ status: "loading" });
+    (async () => {
+      if (isPractice) {
+        const data = await getRandomPuzzle();
+        if (cancelled) return;
+        setLoad(
+          data
+            ? { status: "ready", data, storageId: `practice-${practiceSeed}` }
+            : { status: "error" },
+        );
+      } else {
+        const res = await getTodaysPuzzle();
+        if (cancelled) return;
+        setLoad(
+          res
+            ? { status: "ready", data: res.data, storageId: `daily-${res.date}` }
+            : { status: "error" },
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPractice, practiceSeed]);
 
-  const { data, placed, total } = useMemo(
-    () => buildCrosswordData(puzzle),
-    [puzzle],
-  );
+  const data = load.status === "ready" ? load.data : null;
+  const id = load.status === "ready" ? load.storageId : "loading";
 
   const [solved, setSolved] = useState(false);
   const [active, setActive] = useState<ActiveClue | null>(null);
@@ -102,8 +119,13 @@ export default function CrosswordScreen() {
       if (correct) {
         setSolved(true);
         setCheckMsg(null);
-        // Practice puzzles don't count toward stats or streaks.
-        if (!isPractice) recordCrosswordComplete(dayNumber(today));
+        // Practice puzzles don't count toward stats or streaks. Use the UTC
+        // day number so streaks line up with the server's canonical daily.
+        if (!isPractice) {
+          recordCrosswordComplete(
+            Math.floor(Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000),
+          );
+        }
       }
     },
     [today, isPractice],
@@ -136,6 +158,7 @@ export default function CrosswordScreen() {
   }, []);
 
   const check = useCallback(() => {
+    if (!data) return;
     const cells = gridCells(data);
     let filled = 0;
     let wrong = 0;
@@ -151,6 +174,7 @@ export default function CrosswordScreen() {
   }, [data]);
 
   const revealLetter = useCallback(() => {
+    if (!data) return;
     const cells = gridCells(data);
     const byPos = new Map(cells.map((c) => [`${c.row},${c.col}`, c]));
 
@@ -180,6 +204,31 @@ export default function CrosswordScreen() {
 
   return (
     <div className="crossword">
+      {load.status !== "ready" || !data ? (
+        <>
+          <header className="app-bar">
+            <Link to="/" className="icon-btn" aria-label="Back to menu">
+              ←
+            </Link>
+            <h1>{isPractice ? "Practice" : "Daily Crossword"}</h1>
+          </header>
+          <div className="cw-status">
+            {load.status === "loading" ? (
+              <p>Loading today's puzzle…</p>
+            ) : (
+              <>
+                <p>Couldn't load the puzzle. Check your connection.</p>
+                <button
+                  className="btn-primary"
+                  onClick={() => window.location.reload()}
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      ) : (
       <CrosswordProvider
         key={id}
         ref={cwRef}
@@ -208,12 +257,6 @@ export default function CrosswordScreen() {
             <span className="cw-date">
               {isPractice ? "Practice puzzle" : dateLabel}
             </span>
-            <span className="cw-title">{puzzle.title}</span>
-            {placed < total && (
-              <span className="cw-note">
-                {placed} of {total} words fit this grid
-              </span>
-            )}
           </div>
 
           {/* Practice controls (temporary — for testing puzzles). */}
@@ -285,6 +328,7 @@ export default function CrosswordScreen() {
           </div>
         )}
       </CrosswordProvider>
+      )}
     </div>
   );
 }
