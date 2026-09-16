@@ -290,9 +290,7 @@ export default function CrosswordScreen() {
             </div>
           )}
 
-          <div className="cw-grid-wrap">
-            <CrosswordGrid />
-          </div>
+          <SizedGrid />
 
           <div className="cw-clue-lists">
             <DirectionClues direction="across" />
@@ -329,6 +327,57 @@ export default function CrosswordScreen() {
         )}
       </CrosswordProvider>
       )}
+    </div>
+  );
+}
+
+/**
+ * Wraps react-crossword's <CrosswordGrid />, whose <svg> has a viewBox but no
+ * width/height attributes — so browsers fall back to the default ~300px and
+ * leave a big gap. Rather than fight styled-components with CSS (which didn't
+ * win), we set the svg's width/height directly from the container width and the
+ * viewBox's aspect ratio, and keep it in sync on resize.
+ */
+function SizedGrid() {
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    const sizeSvg = () => {
+      const svg = wrap.querySelector("svg");
+      if (!svg) return;
+      const vb = svg.getAttribute("viewBox");
+      if (!vb) return;
+      const parts = vb.split(/\s+/).map(Number);
+      const vbW = parts[2];
+      const vbH = parts[3];
+      if (!vbW || !vbH) return;
+      const width = wrap.clientWidth;
+      if (!width) return;
+      const height = (width * vbH) / vbW;
+      svg.setAttribute("width", `${width}`);
+      svg.setAttribute("height", `${height}`);
+      svg.style.display = "block";
+    };
+
+    sizeSvg();
+    // The grid's svg is (re)created when the puzzle loads/changes and when the
+    // container resizes; observe both.
+    const ro = new ResizeObserver(sizeSvg);
+    ro.observe(wrap);
+    const mo = new MutationObserver(sizeSvg);
+    mo.observe(wrap, { childList: true, subtree: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className="cw-grid-wrap" ref={wrapRef}>
+      <CrosswordGrid />
     </div>
   );
 }
