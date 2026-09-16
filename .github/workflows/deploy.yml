@@ -47,6 +47,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # --- Tests first: a failure aborts before anything is deployed. -----
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
       # --- Backend -------------------------------------------------------
       - name: Install infra dependencies
         working-directory: infra
@@ -70,10 +77,7 @@ jobs:
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
           echo "Resolved API URL: $API_URL"
 
-      # --- Frontend build ------------------------------------------------
-      - name: Install frontend dependencies
-        run: npm ci
-
+      # --- Frontend build (deps + tests already run above) ---------------
       - name: Build frontend
         env:
           VITE_API_BASE_URL: ${{ steps.api.outputs.api_url }}

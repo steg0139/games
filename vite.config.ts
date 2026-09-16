@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -25,6 +26,13 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_SHA__: JSON.stringify(gitShortSha()),
     __APP_RELEASE__: JSON.stringify(releaseIndex()),
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"],
+    // Exclude the crossword generator script and node_modules from tests.
+    exclude: ["node_modules", "dist", "infra", "scripts"],
   },
   plugins: [
     react(),
