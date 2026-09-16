@@ -10,6 +10,7 @@ import {
   useProfile,
 } from "../lib/stats/useProfile";
 import type { DrawCount } from "../lib/stats/types";
+import { VERSION_LABEL } from "../lib/version";
 import "./Stats.css";
 
 function pct(n: number, d: number): string {
@@ -305,6 +306,8 @@ export default function Stats() {
             </div>
           )}
         </section>
+
+        <p className="version-line">{VERSION_LABEL}</p>
       </div>
     </div>
   );

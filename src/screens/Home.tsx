@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { shareApp } from "../lib/pwa";
+import { isStandalone, shareApp } from "../lib/pwa";
+import { VERSION_LABEL } from "../lib/version";
 import "./Home.css";
 
 interface GameEntry {
@@ -79,7 +80,11 @@ export default function Home() {
         <Link to="/stats" className="home-stats-link">
           Stats &amp; Settings
         </Link>
-        <span>Add to Home Screen to play offline.</span>
+        <span>
+          {isStandalone()
+            ? VERSION_LABEL
+            : "Add to Home Screen to play offline."}
+        </span>
       </footer>
 
       {toast && <div className="home-toast">{toast}</div>}
