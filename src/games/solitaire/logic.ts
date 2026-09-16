@@ -313,7 +313,40 @@ function cardFitsAnyTableau(
   return false;
 }
 
-/** True if any tableau face-up run has a legal move (to foundation or column). */
+/**
+ * Is moving the face-up run starting at row `r` of column `c` onto some other
+ * column a *productive* move? A move counts as productive only if it makes real
+ * progress:
+ *   - it uncovers a face-down card in the source column, or
+ *   - it empties the source column onto a NON-empty column (freeing a slot).
+ * A pure lateral shuffle (relocating a run with nothing to reveal, or moving a
+ * whole column onto another empty column) is NOT productive.
+ * Returns the destination column index if productive, else -1.
+ */
+function productiveTableauTarget(
+  state: SolitaireState,
+  c: number,
+  r: number,
+  run: Card[],
+): number {
+  const col = state.tableau[c];
+  const head = run[0];
+  const uncoversFaceDown = r > 0 && !col[r - 1].faceUp;
+  const emptiesColumn = r === 0;
+
+  for (let t = 0; t < 7; t++) {
+    if (t === c) continue;
+    const tcol = state.tableau[t];
+    if (!canStackOnTableau(head, tcol[tcol.length - 1])) continue;
+
+    if (uncoversFaceDown) return t; // reveals a hidden card — always useful
+    if (emptiesColumn && tcol.length > 0) return t; // frees an empty column
+    // else: lateral shuffle (no reveal, or moving onto another empty) — skip.
+  }
+  return -1;
+}
+
+/** True if any *productive* tableau move exists (foundation play or useful shift). */
 function hasTableauMove(state: SolitaireState): boolean {
   for (let c = 0; c < 7; c++) {
     const col = state.tableau[c];
@@ -321,56 +354,51 @@ function hasTableauMove(state: SolitaireState): boolean {
       if (!col[r].faceUp) continue;
       const run = faceUpRunFrom(col, r);
       if (!run) continue;
-      const head = run[0];
 
-      // Single card to a foundation is always genuine progress.
-      if (run.length === 1 && cardFitsAnyFoundation(head, state)) return true;
+      // A single card to a foundation is always genuine progress.
+      if (run.length === 1 && cardFitsAnyFoundation(run[0], state)) return true;
 
-      // Move onto another tableau column. Exclude the no-op of relocating a
-      // King that already owns an otherwise-empty column to another empty
-      // column (shuffling between empty spots isn't progress).
-      const kingOwnsWholeColumn = run.length === col.length && head.rank === "K";
-      if (!kingOwnsWholeColumn && cardFitsAnyTableau(head, state, c)) {
-        return true;
-      }
+      // A productive tableau→tableau move.
+      if (productiveTableauTarget(state, c, r, run) !== -1) return true;
     }
   }
   return false;
 }
 
 /**
- * True if any stock or waste card can currently be played to a foundation or
- * tableau. Every stock/waste card is eventually surfaceable by cycling the
- * stock (in draw-three you may need to play the cards above it first, which is
- * itself a move), so for the purpose of "can the game still progress at all?"
- * it is sound — and safely non-pessimistic — to test every stock/waste card
- * against the current board. Assumes unlimited redeals.
- *
- * Design note: an earlier attempt simulated the exact draw-three reachable set,
- * but a conservative simulation risks a FALSE dead end (declaring a winnable
- * game lost), which is the one error we must never make. Testing all stock and
- * waste cards can only err toward "keep playing", never toward a false loss.
+ * True if a move can be made RIGHT NOW (no drawing): a productive tableau move,
+ * or the current waste top playing to a foundation or tableau. This is the
+ * "immediate move" signal; the dead-end decision also considers stock cycling
+ * separately via runtime tracking in the screen.
  */
-function hasPlayableStockOrWaste(state: SolitaireState): boolean {
-  for (const card of [...state.stock, ...state.waste]) {
-    if (cardFitsAnyFoundation(card, state)) return true;
-    if (cardFitsAnyTableau(card, state)) return true;
+export function hasImmediateMove(state: SolitaireState): boolean {
+  if (hasTableauMove(state)) return true;
+  const top = state.waste[state.waste.length - 1];
+  if (top) {
+    if (cardFitsAnyFoundation(top, state)) return true;
+    if (cardFitsAnyTableau(top, state)) return true;
   }
   return false;
 }
 
 /**
- * True if the position has at least one legal move available now or reachable
- * by cycling the stock. Tableau moves plus any playable stock/waste card.
+ * True when the game is lost. There is no move right now, and either:
+ *   - the stock and waste are empty (nothing left to draw), or
+ *   - the player has cycled a full pass through the stock without any progress
+ *     (`stockCycledWithoutProgress`, tracked at runtime by the screen). Because
+ *     stock cycling is deterministic, a full no-progress pass proves further
+ *     cycling is futile — this makes detection correct in draw-three without a
+ *     risky static solver, and it can never fire on a winnable position.
  */
-export function hasAnyMove(state: SolitaireState): boolean {
-  return hasTableauMove(state) || hasPlayableStockOrWaste(state);
-}
-
-/** True when the game is lost: not won, and no move is available or reachable. */
-export function isDeadEnd(state: SolitaireState): boolean {
+export function isDeadEnd(
+  state: SolitaireState,
+  stockCycledWithoutProgress: boolean,
+): boolean {
   if (isWon(state)) return false;
-  return !hasAnyMove(state);
+  if (hasImmediateMove(state)) return false;
+  const stockLeft = state.stock.length + state.waste.length;
+  if (stockLeft === 0) return true; // nothing to draw and no move
+  return stockCycledWithoutProgress;
 }
 
 /**
@@ -384,16 +412,20 @@ export type Hint =
   | { kind: "none" };
 
 /** Score a move so the hint prefers the most useful one. Higher = better. */
-function scoreMove(state: SolitaireState, from: PileId, to: PileId): number {
+function scoreMove(
+  state: SolitaireState,
+  from: PileId,
+  cardIndex: number,
+  to: PileId,
+): number {
   let score = 0;
   if (to.kind === "foundation") score += 100; // advancing a foundation is best
   if (from.kind === "tableau") {
     const col = state.tableau[from.index];
-    // Moving the whole column's face-up run that sits on a face-down card will
-    // reveal it — very useful.
-    const faceDownBelow = col.some((c) => !c.faceUp);
-    if (faceDownBelow) score += 50;
-    // Emptying a column (freeing a spot for a King) is useful.
+    // Uncovering a face-down card is the most valuable tableau play.
+    if (cardIndex > 0 && !col[cardIndex - 1].faceUp) score += 60;
+    // Emptying a column (freeing a King slot) is useful too.
+    else if (cardIndex === 0) score += 30;
   }
   if (from.kind === "waste") score += 10; // clearing the waste is mildly useful
   return score;
@@ -408,7 +440,7 @@ export function findHint(state: SolitaireState): Hint {
     null;
 
   const consider = (from: PileId, cardIndex: number, to: PileId) => {
-    const score = scoreMove(state, from, to);
+    const score = scoreMove(state, from, cardIndex, to);
     if (!best || score > best.score) best = { from, cardIndex, to, score };
   };
 
@@ -421,6 +453,7 @@ export function findHint(state: SolitaireState): Hint {
       if (!run) continue;
       const head = run[0];
 
+      // Foundation play (single card).
       if (run.length === 1) {
         for (let f = 0; f < 4; f++) {
           if (canStackOnFoundation(head, state.foundations[f], SUIT_ORDER[f])) {
@@ -431,15 +464,15 @@ export function findHint(state: SolitaireState): Hint {
           }
         }
       }
-      const kingOwnsWholeColumn = run.length === col.length && head.rank === "K";
-      if (!kingOwnsWholeColumn) {
-        for (let t = 0; t < 7; t++) {
-          if (t === c) continue;
-          const tcol = state.tableau[t];
-          if (canStackOnTableau(head, tcol[tcol.length - 1])) {
-            consider({ kind: "tableau", index: c }, r, { kind: "tableau", index: t });
-          }
-        }
+
+      // Only suggest a *productive* tableau→tableau move (reveals a card or
+      // frees a column) — never a pointless lateral shuffle.
+      const target = productiveTableauTarget(state, c, r, run);
+      if (target !== -1) {
+        consider({ kind: "tableau", index: c }, r, {
+          kind: "tableau",
+          index: target,
+        });
       }
     }
   }
