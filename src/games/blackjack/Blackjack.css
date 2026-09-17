@@ -96,58 +96,8 @@
   padding: 16px 16px calc(var(--safe-bottom) + 16px);
 }
 
-.bet-row,
-.action-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  max-width: 480px;
-  margin: 0 auto;
-}
-
-.bet-stepper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  padding: 4px;
-}
-
-.bet-stepper .icon-btn {
-  width: 40px;
-  text-align: center;
-  font-size: 20px;
-  padding: 6px 0;
-}
-
-.bet-amount {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 64px;
-}
-
-.bet-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.bet-value {
-  font-size: 18px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.wide {
-  flex: 1;
-  padding-top: 14px;
-  padding-bottom: 14px;
-  font-size: 16px;
-  text-align: center;
-}
+/* Betting / action control styles moved to src/styles/bet-controls.css and
+   imported by BlackjackScreen (shared with Video Poker). */
 
 /* Player hands: single centered, or side-by-side after a split. */
 .player-hands {

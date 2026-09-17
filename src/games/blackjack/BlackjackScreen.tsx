@@ -23,6 +23,7 @@ import {
   stand,
 } from "./logic";
 import { clearBankroll, loadBankroll, saveBankroll } from "./bankroll";
+import "../../styles/bet-controls.css";
 import "./Blackjack.css";
 
 function outcomeToResult(outcome: Outcome): BlackjackResult {
@@ -69,6 +70,19 @@ export default function BlackjackScreen() {
 
   const adjustBet = useCallback((delta: number) => {
     setState((s) => setBet(s, s.bet + delta));
+  }, []);
+
+  // Bet all remaining chips (setBet clamps to the bankroll).
+  const maxBet = useCallback(() => {
+    setState((s) => setBet(s, s.bankroll));
+  }, []);
+
+  // Free-typed bet. Keep only digits; empty is allowed transiently (stored as
+  // 0 in the field) and clamped to the legal range by setBet on each change.
+  const typeBet = useCallback((raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "");
+    const value = digits === "" ? 0 : parseInt(digits, 10);
+    setState((s) => setBet(s, value));
   }, []);
 
   const startRound = useCallback(() => setState((s) => deal(s)), []);
@@ -199,10 +213,21 @@ export default function BlackjackScreen() {
               >
                 −
               </button>
-              <div className="bet-amount">
+              <label className="bet-amount">
                 <span className="bet-label">Bet</span>
-                <span className="bet-value">${state.bet}</span>
-              </div>
+                <span className="bet-input-wrap">
+                  <span className="bet-currency">$</span>
+                  <input
+                    className="bet-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={state.bet === 0 ? "" : state.bet}
+                    onChange={(e) => typeBet(e.target.value)}
+                    aria-label="Bet amount"
+                  />
+                </span>
+              </label>
               <button
                 className="icon-btn"
                 onClick={() => adjustBet(BET_STEP)}
@@ -211,6 +236,13 @@ export default function BlackjackScreen() {
                 +
               </button>
             </div>
+            <button
+              className="icon-btn"
+              onClick={maxBet}
+              aria-label="Bet max"
+            >
+              Max
+            </button>
             <button className="btn-primary wide" onClick={startRound}>
               Deal
             </button>

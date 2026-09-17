@@ -79,6 +79,14 @@ export default function CrosswordKeyboard({
 
   // Suppress the native keyboard: mark the crossword's hidden input so mobile
   // browsers don't pop their own keyboard when it's focused.
+  //
+  // On the daily this works via the poll below. Practice mode remounts the
+  // whole provider (new `key`), so its hidden <input> is created a tick AFTER
+  // this effect first runs — leaving a window where the poll hasn't tagged it
+  // yet, and tapping a cell in that window pops the OS keyboard. To close that
+  // gap we also watch the DOM and tag the input the instant it appears, with no
+  // polling lag. The attributes applied are exactly the same as before, so the
+  // daily's behaviour is unchanged.
   useEffect(() => {
     const suppress = () => {
       const input = document.querySelector<HTMLInputElement>(
@@ -95,9 +103,16 @@ export default function CrosswordKeyboard({
       }
     };
     suppress();
-    // The input is (re)created as the player moves; keep enforcing it.
+    // Catch the input the moment it's (re)created — covers the practice remount
+    // race that the interval alone misses.
+    const observer = new MutationObserver(suppress);
+    observer.observe(document.body, { childList: true, subtree: true });
+    // The input is also re-created as the player moves; keep enforcing it.
     const timer = setInterval(suppress, 500);
-    return () => clearInterval(timer);
+    return () => {
+      observer.disconnect();
+      clearInterval(timer);
+    };
   }, []);
 
   const press = useCallback(
