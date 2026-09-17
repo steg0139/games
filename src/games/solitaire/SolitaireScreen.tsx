@@ -77,14 +77,6 @@ export default function SolitaireScreen() {
     resumed.current?.history ?? [],
   );
 
-  // Cards flipped from the stock since the last progress (any move). When this
-  // reaches a full stock+waste's worth with no move available, the player has
-  // cycled the whole stock without progress — a provable dead end (works in
-  // draw-three without a static solver). Reset to 0 on any move.
-  const [drawsSinceProgress, setDrawsSinceProgress] = useState(
-    resumed.current?.drawsSinceProgress ?? 0,
-  );
-
   // Hint: card ids to briefly highlight, and whether to pulse the stock.
   const [hintCardIds, setHintCardIds] = useState<Set<string>>(new Set());
   const [hintStock, setHintStock] = useState(false);
@@ -111,12 +103,11 @@ export default function SolitaireScreen() {
   // Detected dead end (not while auto-finishing). This does NOT count as a
   // loss on its own — the banner is dismissible; a loss is only recorded if
   // the player starts a new game from an unfinished dead-end board.
-  const stockCycledWithoutProgress =
-    drawsSinceProgress >= state.stock.length + state.waste.length &&
-    state.stock.length + state.waste.length > 0;
+  // isDeadEnd deterministically simulates stock cycling, so no runtime
+  // progress counter is needed.
   const deadEnd = useMemo(
-    () => !autoFinishing && isDeadEnd(state, stockCycledWithoutProgress),
-    [state, autoFinishing, stockCycledWithoutProgress],
+    () => !autoFinishing && isDeadEnd(state),
+    [state, autoFinishing],
   );
   const showLossBanner = deadEnd && !dismissedDeadEnd;
 
@@ -165,7 +156,6 @@ export default function SolitaireScreen() {
     setDismissedDeadEnd(false);
     setFreshDeal(true);
     setHistory([]);
-    setDrawsSinceProgress(0);
     setHintCardIds(new Set());
     setHintStock(false);
     startedAt.current = Date.now();
@@ -232,27 +222,24 @@ export default function SolitaireScreen() {
         startedAt: startedAt.current,
         drawCount,
         history,
-        drawsSinceProgress,
       });
     }
-  }, [state, moves, won, deadEnd, drawCount, history, drawsSinceProgress]);
+  }, [state, moves, won, deadEnd, drawCount, history]);
 
   const applyMove = useCallback(
     (from: PileId, cardIndex: number, to: PileId) => {
       const next = moveCard(state, from, cardIndex, to);
       if (next) {
         // Snapshot the pre-move state for undo.
-        setHistory((h) => [...h, { state, moves, drawsSinceProgress }]);
+        setHistory((h) => [...h, { state, moves }]);
         setState(next);
         setMoves((m) => m + 1);
-        // A move is progress: reset the no-progress cycle counter and re-arm
-        // the dead-end banner so it can reappear if the player gets stuck.
-        setDrawsSinceProgress(0);
+        // A move may open the board back up, so re-arm the dead-end banner.
         setDismissedDeadEnd(false);
       }
       setSelection(null);
     },
-    [state, moves, drawsSinceProgress],
+    [state, moves],
   );
 
   const handleStock = useCallback(() => {
@@ -260,15 +247,10 @@ export default function SolitaireScreen() {
     const next = drawFromStock(state, drawCount);
     if (next === state) return; // no-op (empty stock and waste)
     // Snapshot before drawing so the draw (and recycle) is undoable.
-    setHistory((h) => [...h, { state, moves, drawsSinceProgress }]);
-    // Count cards newly flipped to the waste toward the no-progress cycle.
-    // A recycle flips none but is still part of the same pass, so we don't
-    // reset here — only an actual move (progress) resets the counter.
-    const flipped = Math.max(0, next.waste.length - state.waste.length);
-    setDrawsSinceProgress((n) => n + flipped);
+    setHistory((h) => [...h, { state, moves }]);
     setState(next);
     setSelection(null);
-  }, [state, moves, drawCount, autoFinishing, drawsSinceProgress]);
+  }, [state, moves, drawCount, autoFinishing]);
 
   const undo = useCallback(() => {
     if (autoFinishing) return;
@@ -277,7 +259,6 @@ export default function SolitaireScreen() {
       const prev = h[h.length - 1];
       setState(prev.state);
       setMoves(prev.moves);
-      setDrawsSinceProgress(prev.drawsSinceProgress);
       setSelection(null);
       // Undoing out of a dead end means it's no longer stuck.
       setDismissedDeadEnd(false);

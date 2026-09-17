@@ -5,13 +5,13 @@ import type { DrawCount } from "../../lib/stats/types";
 import type { SolitaireState } from "./logic";
 
 const STORAGE_KEY = "cards.solitaire.game";
-// v3: added drawsSinceProgress (dead-end cycle tracking). Older saves ignored.
-const SAVE_VERSION = 3;
+// v4: dead-end detection now simulates stock cycling, so drawsSinceProgress was
+// removed. Older saves (v3 and earlier) are ignored and the game resets.
+const SAVE_VERSION = 4;
 
 export interface HistoryEntry {
   state: SolitaireState;
   moves: number;
-  drawsSinceProgress: number;
 }
 
 export interface SavedGame {
@@ -21,7 +21,6 @@ export interface SavedGame {
   startedAt: number; // epoch ms of the original deal
   drawCount: DrawCount;
   history: HistoryEntry[];
-  drawsSinceProgress: number;
 }
 
 export function loadGame(): SavedGame | null {
@@ -43,7 +42,6 @@ export function loadGame(): SavedGame | null {
     return {
       ...parsed,
       history: parsed.history ?? [],
-      drawsSinceProgress: parsed.drawsSinceProgress ?? 0,
     };
   } catch {
     return null;

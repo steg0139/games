@@ -384,35 +384,68 @@ export function hasAnyLegalMove(state: SolitaireState): boolean {
 }
 
 /**
- * True when the game is lost. There is no move right now, and either:
- *   - the stock and waste are empty (nothing left to draw), or
- *   - the player has cycled a full pass through the stock without any progress
- *     (`stockCycledWithoutProgress`, tracked at runtime by the screen). Because
- *     stock cycling is deterministic, a full no-progress pass proves further
- *     cycling is futile — this makes detection correct in draw-three without a
- *     risky static solver, and it can never fire on a winnable position.
+ * Deterministically cycle the stock/waste from the current state and report
+ * whether any card that can *become the waste top* is playable onto the current
+ * board (a foundation or tableau landing).
+ *
+ * Why simulate instead of scanning every stock/waste card: in draw-three only
+ * some cards ever surface as the playable waste top, and which ones depends on
+ * the exact draw/recycle sequence. A flat "is any buried card playable?" scan
+ * over-reports (a playable card may never be reachable), and a runtime
+ * draw-counter under-/over-reports depending on remainder math. Because drawing
+ * and recycling are fully deterministic (drawFromStock), we can just replay the
+ * draws and inspect each waste top we'd actually see. We stop after a bounded
+ * number of draws (one full recycle can't surface anything a prior pass didn't,
+ * so 2x the deck size is a safe cap).
+ *
+ * Note: this checks reachability against the *current* board only. That's
+ * exactly what dead-end detection needs — if no reachable draw can produce even
+ * one legal move, drawing changes nothing and the game is stuck.
  */
-export function isDeadEnd(
-  state: SolitaireState,
-  stockCycledWithoutProgress: boolean,
-): boolean {
+function stockCanYieldPlayableCard(state: SolitaireState): boolean {
+  const total = state.stock.length + state.waste.length;
+  if (total === 0) return false;
+
+  let sim = state;
+  const seen = new Set<string>();
+  // Cap: enough draws to surface every card at least once through a full
+  // recycle, with headroom. Each draw flips >=1 card (or recycles), so 2*total
+  // draws is a safe upper bound that always terminates.
+  for (let i = 0; i < total * 2 + 2; i++) {
+    const next = drawFromStock(sim, DRAW_COUNT);
+    if (next === sim) break; // stock and waste both empty — nothing to draw
+    sim = next;
+    const top = sim.waste[sim.waste.length - 1];
+    if (top) {
+      // Once we've evaluated a given waste top against this (unchanged) board,
+      // re-seeing it proves nothing new; short-circuit repeats.
+      if (!seen.has(top.id)) {
+        seen.add(top.id);
+        if (cardFitsAnyFoundation(top, state) || cardFitsAnyTableau(top, state)) {
+          return true;
+        }
+      }
+    }
+    // If we've now seen every card as a top at least once, further cycling is
+    // futile.
+    if (seen.size >= total) break;
+  }
+  return false;
+}
+
+/**
+ * True when the game is lost: there is no legal move on the board right now,
+ * AND no amount of drawing can surface a playable card. Because stock cycling
+ * is deterministic, we prove the latter by simulation (stockCanYieldPlayableCard)
+ * rather than a runtime counter — this is correct for both draw-one and
+ * draw-three and can never fire on a position that still has a move.
+ */
+export function isDeadEnd(state: SolitaireState): boolean {
   if (isWon(state)) return false;
   // Any legal move at all means not stuck (not just "productive" ones).
   if (hasAnyLegalMove(state)) return false;
-  // Also not stuck if some stock/waste card could be played once surfaced.
-  for (const card of [...state.stock, ...state.waste]) {
-    if (cardFitsAnyFoundation(card, state) || cardFitsAnyTableau(card, state)) {
-      // A playable card is somewhere in the stock/waste. Only truly stuck once
-      // a full no-progress cycle proves it can't be reached (draw-three), and
-      // never while the player hasn't yet cycled the whole stock.
-      return stockCycledWithoutProgress;
-    }
-  }
-  // No move now and nothing in stock/waste can ever play: dead once we've also
-  // confirmed there's no drawing left to change things.
-  const stockLeft = state.stock.length + state.waste.length;
-  if (stockLeft === 0) return true;
-  return stockCycledWithoutProgress;
+  // No on-board move: stuck only if drawing can't surface anything playable.
+  return !stockCanYieldPlayableCard(state);
 }
 
 /**
