@@ -402,33 +402,40 @@ export function hasAnyLegalMove(state: SolitaireState): boolean {
  * exactly what dead-end detection needs — if no reachable draw can produce even
  * one legal move, drawing changes nothing and the game is stuck.
  */
-function stockCanYieldPlayableCard(state: SolitaireState): boolean {
+function stockCanYieldPlayableCard(
+  state: SolitaireState,
+  drawCount: number,
+): boolean {
   const total = state.stock.length + state.waste.length;
   if (total === 0) return false;
 
   let sim = state;
   const seen = new Set<string>();
-  // Cap: enough draws to surface every card at least once through a full
-  // recycle, with headroom. Each draw flips >=1 card (or recycles), so 2*total
-  // draws is a safe upper bound that always terminates.
-  for (let i = 0; i < total * 2 + 2; i++) {
-    const next = drawFromStock(sim, DRAW_COUNT);
+  // Draw repeatedly with the player's actual draw count (draw-one surfaces
+  // every card as a top; draw-three only some). Detect a true cycle by the
+  // sequence of waste-stack sizes we return to, so we stop as soon as further
+  // drawing can't surface a new top — and always terminate. The absolute cap
+  // is a safety net.
+  const visitedStates = new Set<string>();
+  const cap = (total + 1) * 4;
+  for (let i = 0; i < cap; i++) {
+    const next = drawFromStock(sim, drawCount);
     if (next === sim) break; // stock and waste both empty — nothing to draw
     sim = next;
+
     const top = sim.waste[sim.waste.length - 1];
-    if (top) {
-      // Once we've evaluated a given waste top against this (unchanged) board,
-      // re-seeing it proves nothing new; short-circuit repeats.
-      if (!seen.has(top.id)) {
-        seen.add(top.id);
-        if (cardFitsAnyFoundation(top, state) || cardFitsAnyTableau(top, state)) {
-          return true;
-        }
+    if (top && !seen.has(top.id)) {
+      seen.add(top.id);
+      if (cardFitsAnyFoundation(top, state) || cardFitsAnyTableau(top, state)) {
+        return true;
       }
     }
-    // If we've now seen every card as a top at least once, further cycling is
-    // futile.
-    if (seen.size >= total) break;
+
+    // A repeated (stock size, top card) marks a full deterministic cycle; every
+    // reachable top has been surfaced, so nothing new can appear.
+    const key = `${sim.stock.length}:${top?.id ?? "-"}`;
+    if (visitedStates.has(key)) break;
+    visitedStates.add(key);
   }
   return false;
 }
@@ -440,12 +447,16 @@ function stockCanYieldPlayableCard(state: SolitaireState): boolean {
  * rather than a runtime counter — this is correct for both draw-one and
  * draw-three and can never fire on a position that still has a move.
  */
-export function isDeadEnd(state: SolitaireState): boolean {
+export function isDeadEnd(
+  state: SolitaireState,
+  drawCount: number = DRAW_COUNT,
+): boolean {
   if (isWon(state)) return false;
   // Any legal move at all means not stuck (not just "productive" ones).
   if (hasAnyLegalMove(state)) return false;
-  // No on-board move: stuck only if drawing can't surface anything playable.
-  return !stockCanYieldPlayableCard(state);
+  // No on-board move: stuck only if drawing (with the player's actual draw
+  // count) can't surface anything playable.
+  return !stockCanYieldPlayableCard(state, drawCount);
 }
 
 /**

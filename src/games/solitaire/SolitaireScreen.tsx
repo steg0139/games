@@ -103,11 +103,12 @@ export default function SolitaireScreen() {
   // Detected dead end (not while auto-finishing). This does NOT count as a
   // loss on its own — the banner is dismissible; a loss is only recorded if
   // the player starts a new game from an unfinished dead-end board.
-  // isDeadEnd deterministically simulates stock cycling, so no runtime
-  // progress counter is needed.
+  // isDeadEnd deterministically simulates stock cycling with the player's
+  // actual draw count (draw-one surfaces every card; draw-three only some), so
+  // no runtime progress counter is needed.
   const deadEnd = useMemo(
-    () => !autoFinishing && isDeadEnd(state),
-    [state, autoFinishing],
+    () => !autoFinishing && isDeadEnd(state, drawCount),
+    [state, autoFinishing, drawCount],
   );
   const showLossBanner = deadEnd && !dismissedDeadEnd;
 

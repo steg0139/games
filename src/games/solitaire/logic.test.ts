@@ -233,6 +233,22 @@ describe("dead-end detection", () => {
     expect(hasAnyLegalMove(s)).toBe(false);
     expect(isDeadEnd(s)).toBe(true);
   });
+
+  it("respects the draw count: a card buried in the waste is reachable on draw-one", () => {
+    // Ace of spades sits under the current waste top (2c). On DRAW-ONE every
+    // card surfaces as a top, so the Ace is reachable to the (empty) spades
+    // foundation — not a dead end. The detector must simulate the player's
+    // actual draw count, not assume draw-three. (Regression: it hardcoded
+    // draw-three and popped the banner right after a legal draw-one play.)
+    const s = emptyState();
+    s.foundations[0] = []; // spades foundation empty -> Ace is playable
+    s.stock = [down("7", "clubs")];
+    s.waste = [up("A", "spades"), up("2", "clubs")]; // top 2c, Ah buried
+    s.tableau[0] = [up("5", "spades")];
+    s.tableau[1] = [up("9", "diamonds")];
+    expect(hasAnyLegalMove(s)).toBe(false);
+    expect(isDeadEnd(s, 1)).toBe(false); // draw-one surfaces the Ace
+  });
 });
 
 describe("findHint", () => {
