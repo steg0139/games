@@ -384,79 +384,33 @@ export function hasAnyLegalMove(state: SolitaireState): boolean {
 }
 
 /**
- * Deterministically cycle the stock/waste from the current state and report
- * whether any card that can *become the waste top* is playable onto the current
- * board (a foundation or tableau landing).
+ * True when the game is *provably and simply* lost: there is no legal move on
+ * the board right now, and there is nothing left to draw (stock and waste are
+ * both empty). In that state the board is fully visible and frozen, so no move
+ * can ever appear.
  *
- * Why simulate instead of scanning every stock/waste card: in draw-three only
- * some cards ever surface as the playable waste top, and which ones depends on
- * the exact draw/recycle sequence. A flat "is any buried card playable?" scan
- * over-reports (a playable card may never be reachable), and a runtime
- * draw-counter under-/over-reports depending on remainder math. Because drawing
- * and recycling are fully deterministic (drawFromStock), we can just replay the
- * draws and inspect each waste top we'd actually see. We stop after a bounded
- * number of draws (one full recycle can't surface anything a prior pass didn't,
- * so 2x the deck size is a safe cap).
+ * Why only this narrow case: precisely deciding "no future move is reachable"
+ * while cards remain in the stock is, in Klondike, a full reachability problem.
+ * Whether a move opens up can hinge on long chains of tableau and foundation
+ * plays that also shift which stock cards surface (especially in draw-three,
+ * where playing a card off the waste re-aligns every later draw). Every cheaper
+ * heuristic we tried — a draw counter, a single no-play stock cycle, a
+ * draw-plus-foundation search — produced FALSE "no moves left" banners because
+ * it missed some such chain, and a full breadth-first solver blows up on the
+ * lateral-shuffle branching of a mid-game board.
  *
- * Note: this checks reachability against the *current* board only. That's
- * exactly what dead-end detection needs — if no reachable draw can produce even
- * one legal move, drawing changes nothing and the game is stuck.
+ * A wrong "you're stuck" banner is far worse than a missed one (the player can
+ * always start a New game). So detection is deliberately conservative: it only
+ * fires when it is impossible to be wrong. While the stock or waste still holds
+ * a card, we never declare a dead end — the player keeps their draw/undo tools
+ * and decides for themselves.
  */
-function stockCanYieldPlayableCard(
-  state: SolitaireState,
-  drawCount: number,
-): boolean {
-  const total = state.stock.length + state.waste.length;
-  if (total === 0) return false;
-
-  let sim = state;
-  const seen = new Set<string>();
-  // Draw repeatedly with the player's actual draw count (draw-one surfaces
-  // every card as a top; draw-three only some). Detect a true cycle by the
-  // sequence of waste-stack sizes we return to, so we stop as soon as further
-  // drawing can't surface a new top — and always terminate. The absolute cap
-  // is a safety net.
-  const visitedStates = new Set<string>();
-  const cap = (total + 1) * 4;
-  for (let i = 0; i < cap; i++) {
-    const next = drawFromStock(sim, drawCount);
-    if (next === sim) break; // stock and waste both empty — nothing to draw
-    sim = next;
-
-    const top = sim.waste[sim.waste.length - 1];
-    if (top && !seen.has(top.id)) {
-      seen.add(top.id);
-      if (cardFitsAnyFoundation(top, state) || cardFitsAnyTableau(top, state)) {
-        return true;
-      }
-    }
-
-    // A repeated (stock size, top card) marks a full deterministic cycle; every
-    // reachable top has been surfaced, so nothing new can appear.
-    const key = `${sim.stock.length}:${top?.id ?? "-"}`;
-    if (visitedStates.has(key)) break;
-    visitedStates.add(key);
-  }
-  return false;
-}
-
-/**
- * True when the game is lost: there is no legal move on the board right now,
- * AND no amount of drawing can surface a playable card. Because stock cycling
- * is deterministic, we prove the latter by simulation (stockCanYieldPlayableCard)
- * rather than a runtime counter — this is correct for both draw-one and
- * draw-three and can never fire on a position that still has a move.
- */
-export function isDeadEnd(
-  state: SolitaireState,
-  drawCount: number = DRAW_COUNT,
-): boolean {
+export function isDeadEnd(state: SolitaireState): boolean {
   if (isWon(state)) return false;
-  // Any legal move at all means not stuck (not just "productive" ones).
-  if (hasAnyLegalMove(state)) return false;
-  // No on-board move: stuck only if drawing (with the player's actual draw
-  // count) can't surface anything playable.
-  return !stockCanYieldPlayableCard(state, drawCount);
+  // Anything left to draw could change the board — never call it stuck yet.
+  if (state.stock.length > 0 || state.waste.length > 0) return false;
+  // Stock and waste empty: stuck iff no on-board move remains.
+  return !hasAnyLegalMove(state);
 }
 
 /**

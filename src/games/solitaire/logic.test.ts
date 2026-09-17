@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type Card, createDeck } from "../../lib/cards";
+import { type Card, RANKS, createDeck } from "../../lib/cards";
 import {
   type SolitaireState,
   DRAW_COUNT,
+  SUIT_ORDER,
   canAutoFinish,
   drawFromStock,
   findHint,
@@ -168,17 +169,12 @@ describe("win + auto-finish", () => {
 });
 
 describe("dead-end detection", () => {
-  it("is NOT a dead end when a legal (even unproductive) move exists", () => {
-    // Only move is a lateral shuffle 6h->7c (reveals nothing) — but it's legal,
-    // so the game is not stuck. This is the regression we fixed.
-    const s = emptyState();
-    s.tableau[0] = [down("2", "clubs"), up("9", "spades"), up("6", "hearts")];
-    s.tableau[1] = [up("7", "clubs")]; // 6h can go on 7c
-    expect(hasAnyLegalMove(s)).toBe(true);
-    expect(isDeadEnd(s)).toBe(false);
-  });
+  // Dead-end detection is deliberately conservative: it only fires when it is
+  // impossible to be wrong — no legal move AND nothing left to draw. A false
+  // "you're stuck" banner is worse than a missed one, and precisely proving a
+  // stuck position while stock remains is a full Klondike reachability problem.
 
-  it("is a dead end when stock/waste empty and no legal move", () => {
+  it("is a dead end when stock/waste are empty and no legal move exists", () => {
     const s = emptyState();
     s.tableau[0] = [up("5", "spades")];
     s.tableau[1] = [up("3", "clubs")]; // nothing stacks, no foundation move
@@ -186,68 +182,54 @@ describe("dead-end detection", () => {
     expect(isDeadEnd(s)).toBe(true);
   });
 
-  it("is a dead end when no on-board move and no stock card can ever play", () => {
-    // No move now; drawing only ever surfaces 4c / 6h, neither of which can
-    // land on 5s or 3c (5s needs a red 4; 3c needs a red 2). Deterministic
-    // cycling proves it's stuck — no runtime counter needed.
+  it("is NOT a dead end when a legal (even unproductive) move exists", () => {
+    // Lateral shuffle 6h->7c is legal, so not stuck even with empty stock.
+    const s = emptyState();
+    s.tableau[0] = [down("2", "clubs"), up("9", "spades"), up("6", "hearts")];
+    s.tableau[1] = [up("7", "clubs")];
+    expect(hasAnyLegalMove(s)).toBe(true);
+    expect(isDeadEnd(s)).toBe(false);
+  });
+
+  it("is NEVER a dead end while the stock still has cards", () => {
+    // No on-board move, but the stock is non-empty. We refuse to call this
+    // stuck: drawing might change the board, and proving otherwise precisely is
+    // intractable, so the conservative rule keeps the player's draw available.
     const s = emptyState();
     s.stock = [down("4", "clubs"), down("6", "hearts")];
-    s.waste = [up("9", "spades")];
     s.tableau[0] = [up("5", "spades")];
     s.tableau[1] = [up("3", "clubs")];
     expect(hasAnyLegalMove(s)).toBe(false);
-    expect(isDeadEnd(s)).toBe(true);
+    expect(isDeadEnd(s)).toBe(false);
   });
 
-  it("is NOT a dead end when a drawn card surfaces as a playable waste top", () => {
-    // draw-three pops from the end of the stock, so a single draw of these
-    // three lands 4h on top of the waste; 4h (red) stacks on 5s (black). This
-    // is the false-positive case: no on-board move, but a draw creates one.
+  it("is NEVER a dead end while the waste still has cards", () => {
+    // Even a single buried waste card keeps the position alive under the
+    // conservative rule (recycling could re-surface it).
     const s = emptyState();
-    // stock end is the first card drawn's *bottom*; after one draw of 3 the
-    // waste top is the last-popped card = stock[0]. Put 4h there.
-    s.stock = [down("4", "hearts"), down("8", "clubs"), down("2", "clubs")];
-    s.waste = [];
-    s.tableau[0] = [up("5", "spades")]; // 4h can stack here
-    s.tableau[1] = [up("K", "clubs")];
-    expect(hasAnyLegalMove(s)).toBe(false); // nothing plays yet
-    expect(isDeadEnd(s)).toBe(false); // a draw makes 4h the top -> not stuck
-  });
-
-  it("is NOT a dead end when a drawn card can reach a foundation", () => {
-    // Spades foundation at Ace; 2s surfaces as the waste top after a draw and
-    // can advance the foundation.
-    const s = emptyState();
-    s.foundations[0] = [up("A", "spades")]; // SUIT_ORDER[0] === spades
-    s.stock = [down("2", "spades"), down("9", "clubs"), down("7", "hearts")];
-    s.tableau[0] = [up("5", "spades")];
-    s.tableau[1] = [up("8", "clubs")];
-    expect(hasAnyLegalMove(s)).toBe(false);
-    expect(isDeadEnd(s)).toBe(false); // drawing surfaces 2s -> foundation
-  });
-
-  it("a lone King between empty columns is not a real move", () => {
-    const s = emptyState();
-    s.tableau[0] = [up("K", "spades")];
-    // columns 1..6 empty; moving K to another empty column is a no-op
-    expect(hasAnyLegalMove(s)).toBe(false);
-    expect(isDeadEnd(s)).toBe(true);
-  });
-
-  it("respects the draw count: a card buried in the waste is reachable on draw-one", () => {
-    // Ace of spades sits under the current waste top (2c). On DRAW-ONE every
-    // card surfaces as a top, so the Ace is reachable to the (empty) spades
-    // foundation — not a dead end. The detector must simulate the player's
-    // actual draw count, not assume draw-three. (Regression: it hardcoded
-    // draw-three and popped the banner right after a legal draw-one play.)
-    const s = emptyState();
-    s.foundations[0] = []; // spades foundation empty -> Ace is playable
-    s.stock = [down("7", "clubs")];
-    s.waste = [up("A", "spades"), up("2", "clubs")]; // top 2c, Ah buried
+    s.waste = [up("A", "spades"), up("2", "clubs")]; // top 2c can't play
     s.tableau[0] = [up("5", "spades")];
     s.tableau[1] = [up("9", "diamonds")];
     expect(hasAnyLegalMove(s)).toBe(false);
-    expect(isDeadEnd(s, 1)).toBe(false); // draw-one surfaces the Ace
+    expect(isDeadEnd(s)).toBe(false);
+  });
+
+  it("a lone King between empty columns is stuck when nothing is left to draw", () => {
+    const s = emptyState();
+    s.tableau[0] = [up("K", "spades")];
+    // columns 1..6 empty; moving K to another empty column is a no-op, and the
+    // stock/waste are empty -> genuinely stuck.
+    expect(hasAnyLegalMove(s)).toBe(false);
+    expect(isDeadEnd(s)).toBe(true);
+  });
+
+  it("is not a dead end when the board is complete (won)", () => {
+    const s = emptyState();
+    s.foundations = SUIT_ORDER.map((suit) =>
+      RANKS.map((rank) => up(rank, suit)),
+    );
+    expect(isWon(s)).toBe(true);
+    expect(isDeadEnd(s)).toBe(false);
   });
 });
 
