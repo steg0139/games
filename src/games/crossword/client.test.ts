@@ -8,8 +8,18 @@ afterEach(() => {
 });
 
 describe("todayKey", () => {
-  it("is a UTC YYYY-MM-DD string", () => {
+  it("is a Central-time YYYY-MM-DD string", () => {
     expect(todayKey()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("matches the America/Chicago calendar date", () => {
+    const expected = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Chicago",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    expect(todayKey()).toBe(expected);
   });
 });
 

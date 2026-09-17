@@ -12,14 +12,21 @@ export interface DailyPuzzle {
   data: CrosswordData;
 }
 
-/** Local date key (UTC) matching the backend's canonical daily key. */
+// The daily puzzle rolls over at midnight America/Chicago (Central) for
+// everyone — a single canonical puzzle shared by all users, keyed by the
+// Central calendar date. Using the IANA zone makes it track CST/CDT (DST)
+// automatically. The backend uses the identical rule so keys match.
+const DAILY_TIME_ZONE = "America/Chicago";
+
+/** Today's canonical daily key (YYYY-MM-DD) in Central time. */
 export function todayKey(): string {
-  const d = new Date();
-  return new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
-  )
-    .toISOString()
-    .slice(0, 10);
+  // en-CA formats as YYYY-MM-DD, which is exactly our key format.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: DAILY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 function readCache(date: string): CrosswordData | null {

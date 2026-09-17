@@ -128,17 +128,35 @@ function generatePuzzle(
   return { puzzle: { across: {}, down: {} }, words: [] };
 }
 
-/** Days since the Unix epoch (UTC) — the canonical daily index. */
-function dayNumberUTC(d = new Date()): number {
-  return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86_400_000);
+// The daily puzzle rolls over at midnight America/Chicago (Central) for
+// everyone. The frontend (src/games/crossword/client.ts) uses the identical
+// rule so the date keys match. The IANA zone tracks CST/CDT automatically.
+const DAILY_TIME_ZONE = "America/Chicago";
+
+/** The canonical daily key (YYYY-MM-DD) for the given instant, in Central. */
+function dateKey(d = new Date()): string {
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: DAILY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
-function dateKey(d = new Date()): string {
-  return new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
-  )
-    .toISOString()
-    .slice(0, 10);
+/**
+ * A stable integer that increments by exactly 1 each Central calendar day,
+ * derived from the Central date string. Used as the puzzle seed and as the
+ * index for the no-repeat window. Converting the Central date back through
+ * UTC-midnight keeps consecutive days one apart regardless of DST.
+ */
+function dayNumber(d = new Date()): number {
+  return Math.floor(Date.parse(`${dateKey(d)}T00:00:00Z`) / 86_400_000);
+}
+
+/** The Central date string for a given day-number (inverse of dayNumber). */
+function dateKeyFromDayNumber(dayNum: number): string {
+  return new Date(dayNum * 86_400_000).toISOString().slice(0, 10);
 }
 
 interface StoredDay {
@@ -163,14 +181,14 @@ async function storeDay(date: string, day: StoredDay): Promise<void> {
   );
 }
 
-/** Words used across the NO_REPEAT_DAYS days before `date`, to exclude. */
+/** Words used across the NO_REPEAT_DAYS days before `beforeDayNum`, to exclude.
+ *  Day-numbers map back to the same Central date keys used when storing. */
 async function recentWords(beforeDayNum: number): Promise<Set<string>> {
   const used = new Set<string>();
   // Read each prior day's stored puzzle (cheap point reads; ~60 of them).
   const reads: Promise<StoredDay | null>[] = [];
   for (let i = 1; i <= NO_REPEAT_DAYS; i++) {
-    const d = new Date((beforeDayNum - i) * 86_400_000).toISOString().slice(0, 10);
-    reads.push(getStored(d));
+    reads.push(getStored(dateKeyFromDayNumber(beforeDayNum - i)));
   }
   for (const day of await Promise.all(reads)) {
     if (day) for (const w of day.words) used.add(w);
@@ -184,7 +202,7 @@ async function todaysPuzzle(): Promise<{ date: string; puzzle: Puzzle }> {
   const existing = await getStored(date);
   if (existing) return { date, puzzle: existing.puzzle };
 
-  const dayNum = dayNumberUTC();
+  const dayNum = dayNumber();
   const exclude = await recentWords(dayNum);
   // Seed by the UTC day number so on-demand and cron produce the same puzzle
   // (both see the same prior-60-day exclusion set once the day has started).

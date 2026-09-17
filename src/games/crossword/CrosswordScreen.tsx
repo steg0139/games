@@ -52,7 +52,28 @@ type LoadState =
   | { status: "ready"; data: CrosswordData; storageId: string };
 
 export default function CrosswordScreen() {
-  const today = useMemo(() => new Date(), []);
+  // The current Central-time day key. If the app is left open or resumed from
+  // background across midnight Central, this updates on focus/visibility so the
+  // daily refetches instead of showing yesterday's puzzle.
+  const [dayKey, setDayKey] = useState(() => todayKey());
+  const today = useMemo(() => new Date(), [dayKey]);
+
+  useEffect(() => {
+    const checkDay = () => {
+      const now = todayKey();
+      setDayKey((prev) => (prev === now ? prev : now));
+    };
+    // Re-check whenever the app comes back to the foreground.
+    document.addEventListener("visibilitychange", checkDay);
+    window.addEventListener("focus", checkDay);
+    // Also poll occasionally so a continuously-visible tab rolls over too.
+    const timer = setInterval(checkDay, 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", checkDay);
+      window.removeEventListener("focus", checkDay);
+      clearInterval(timer);
+    };
+  }, []);
 
   // Practice mode: a random puzzle from the backend that doesn't touch the
   // daily's saved progress or stats. `practiceSeed` bumps to load a new one.
@@ -62,11 +83,21 @@ export default function CrosswordScreen() {
   // The puzzle is fetched from the backend (daily is canonical + cached).
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
 
+  // Track the last practice seed we actually loaded, so a day rollover doesn't
+  // reshuffle an in-progress practice puzzle (dayKey is in the deps only to
+  // refetch the *daily* across midnight).
+  const loadedPracticeSeed = useRef<number | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    setLoad({ status: "loading" });
-    (async () => {
-      if (isPractice) {
+
+    if (isPractice) {
+      // Only (re)load a practice puzzle when its seed actually changed — not on
+      // a day rollover.
+      if (loadedPracticeSeed.current === practiceSeed) return;
+      loadedPracticeSeed.current = practiceSeed;
+      setLoad({ status: "loading" });
+      (async () => {
         const data = await getRandomPuzzle();
         if (cancelled) return;
         setLoad(
@@ -74,7 +105,11 @@ export default function CrosswordScreen() {
             ? { status: "ready", data, storageId: `practice-${practiceSeed}` }
             : { status: "error" },
         );
-      } else {
+      })();
+    } else {
+      loadedPracticeSeed.current = null;
+      setLoad({ status: "loading" });
+      (async () => {
         const res = await getTodaysPuzzle();
         if (cancelled) return;
         setLoad(
@@ -82,12 +117,14 @@ export default function CrosswordScreen() {
             ? { status: "ready", data: res.data, storageId: `daily-${res.date}` }
             : { status: "error" },
         );
-      }
-    })();
+      })();
+    }
     return () => {
       cancelled = true;
     };
-  }, [isPractice, practiceSeed]);
+    // dayKey: refetch the daily when the Central date changes (open/backgrounded
+    // PWA crossing midnight). Practice is guarded above so it isn't reshuffled.
+  }, [isPractice, practiceSeed, dayKey]);
 
   const data = load.status === "ready" ? load.data : null;
   const id = load.status === "ready" ? load.storageId : "loading";

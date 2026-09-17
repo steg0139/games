@@ -117,8 +117,13 @@ export class CardGamesStack extends cdk.Stack {
       integration: crosswordIntegration,
     });
 
-    // Nightly cron (00:10 UTC) pre-generates the day's canonical puzzle so the
-    // first visitor gets a cache hit. Invokes the `scheduled` export.
+    // Nightly cron pre-generates the day's canonical puzzle so the first
+    // visitor gets a cache hit. Invokes the `scheduled` export. The daily rolls
+    // over at midnight America/Chicago; EventBridge cron is UTC-only and does
+    // not track DST, so we fire shortly after both possible Central midnights
+    // (05:10 UTC in CDT, 06:10 UTC in CST). Generation is idempotent — whichever
+    // run happens after the local rollover creates the puzzle; the other is a
+    // no-op read — so running at both times is safe.
     const crosswordCronFn = new lambdaNode.NodejsFunction(this, "CrosswordCronFn", {
       entry: path.join(__dirname, "..", "lambda", "crossword.ts"),
       handler: "scheduled",
@@ -136,8 +141,9 @@ export class CardGamesStack extends cdk.Stack {
     });
     table.grantReadWriteData(crosswordCronFn);
 
+    // 05:10 UTC = 00:10 CDT (summer); 06:10 UTC = 00:10 CST (winter).
     new events.Rule(this, "CrosswordDailyRule", {
-      schedule: events.Schedule.cron({ minute: "10", hour: "0" }), // 00:10 UTC
+      schedule: events.Schedule.cron({ minute: "10", hour: "5,6" }),
       targets: [new targets.LambdaFunction(crosswordCronFn)],
     });
 
