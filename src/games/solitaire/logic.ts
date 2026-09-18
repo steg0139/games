@@ -104,10 +104,17 @@ function faceUpRunFrom(column: Card[], cardIndex: number): Card[] | null {
   return run;
 }
 
-/** Flip the top tableau card face up if needed. Mutates the passed column copy. */
+/**
+ * Flip the top tableau card face up if needed. Replaces the top element with a
+ * NEW flipped card object rather than mutating in place: columns are only
+ * shallow-copied (`.slice()`), so the card objects are shared with the previous
+ * state (and with undo-history snapshots). Mutating `faceUp` here would flip the
+ * card in those snapshots too, so undo couldn't turn it back over.
+ */
 function revealTop(column: Card[]): void {
-  const top = column[column.length - 1];
-  if (top && !top.faceUp) top.faceUp = true;
+  const i = column.length - 1;
+  const top = column[i];
+  if (top && !top.faceUp) column[i] = { ...top, faceUp: true };
 }
 
 /**

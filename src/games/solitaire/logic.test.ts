@@ -137,6 +137,29 @@ describe("moveCard", () => {
     expect(next!.tableau[0]).toHaveLength(1);
     expect(next!.tableau[0][0].faceUp).toBe(true);
   });
+
+  it("does not mutate the source state when revealing a card (undo safety)", () => {
+    // Regression: revealTop used to flip the card in place. Because columns are
+    // only shallow-copied, that same card object lived in the caller's state
+    // (and in undo-history snapshots), so the exposed card stayed face-up after
+    // an undo. The move must leave the ORIGINAL state's card face-down.
+    const s = emptyState();
+    s.tableau[0] = [down("9", "hearts"), up("6", "spades")]; // 9h hidden under 6s
+    s.tableau[1] = [up("7", "hearts")]; // 6s -> 7h is valid
+
+    const originalCard = s.tableau[0][0];
+    const next = moveCard(s, { kind: "tableau", index: 0 }, 1, {
+      kind: "tableau",
+      index: 1,
+    });
+
+    expect(next).not.toBeNull();
+    // New state: the 9h is now exposed and flipped up.
+    expect(next!.tableau[0][0].faceUp).toBe(true);
+    // Original state (what undo restores): untouched — still face-down.
+    expect(s.tableau[0][0].faceUp).toBe(false);
+    expect(originalCard.faceUp).toBe(false);
+  });
 });
 
 describe("win + auto-finish", () => {
