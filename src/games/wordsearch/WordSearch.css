@@ -35,6 +35,10 @@
   color: var(--accent);
 }
 
+.ws-diff {
+  margin-bottom: 12px;
+}
+
 .ws-practice-row {
   display: flex;
   flex-wrap: wrap;

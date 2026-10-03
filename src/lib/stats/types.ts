@@ -51,6 +51,9 @@ export type DrawCount = 1 | 3;
 /** Sudoku difficulty the player picks for the daily (one streak either way). */
 export type SudokuDifficulty = "easy" | "regular";
 
+/** Word Search difficulty — bigger grid = harder (one streak regardless). */
+export type WordSearchDifficulty = "easy" | "medium" | "hard";
+
 export interface Settings {
   soundEnabled: boolean;
   solitaireDrawCount: DrawCount;
@@ -58,6 +61,8 @@ export interface Settings {
   solitaireAutoFinish: boolean;
   /** Preferred difficulty for the daily Sudoku. */
   sudokuDifficulty: SudokuDifficulty;
+  /** Preferred difficulty (grid size) for the daily Word Search. */
+  wordsearchDifficulty: WordSearchDifficulty;
 }
 
 export interface Profile {
@@ -134,6 +139,7 @@ export function defaultProfile(): Profile {
       solitaireDrawCount: 3,
       solitaireAutoFinish: true,
       sudokuDifficulty: "regular",
+      wordsearchDifficulty: "medium",
     },
     solitaire: emptySolitaireStats(),
     blackjack: emptyBlackjackStats(),

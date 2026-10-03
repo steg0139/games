@@ -18,18 +18,31 @@ import wordPool from "./word-pool.json";
 const TABLE_NAME = process.env.TABLE_NAME!;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
-const GRID_SIZE = 12; // 12x12 letter grid
-const WORD_COUNT = 10; // words hidden per puzzle
-const MIN_WORD_LEN = 4;
-const MAX_WORD_LEN = 10; // must fit within GRID_SIZE
+type Difficulty = "easy" | "medium" | "hard";
+
+// Grid size + word count per difficulty. Bigger grid = harder. maxWordLen is
+// capped to the grid size so words always fit.
+interface DiffConfig {
+  size: number;
+  wordCount: number;
+  minWordLen: number;
+  maxWordLen: number;
+}
+const DIFFICULTY: Record<Difficulty, DiffConfig> = {
+  easy: { size: 8, wordCount: 6, minWordLen: 3, maxWordLen: 7 },
+  medium: { size: 12, wordCount: 10, minWordLen: 4, maxWordLen: 10 },
+  hard: { size: 15, wordCount: 14, minWordLen: 4, maxWordLen: 12 },
+};
+
 const NO_REPEAT_DAYS = 30;
 
-// Reuse the crossword word pool's answers as a clean source of common words.
+// All clean candidate words from the crossword pool (3-12 letters). The
+// per-difficulty length window is applied when building each puzzle.
 const ALL_WORDS: string[] = Array.from(
   new Set(
     (wordPool as { answer: string }[])
       .map((w) => w.answer.toUpperCase())
-      .filter((w) => /^[A-Z]+$/.test(w) && w.length >= MIN_WORD_LEN && w.length <= MAX_WORD_LEN),
+      .filter((w) => /^[A-Z]+$/.test(w) && w.length >= 3 && w.length <= 12),
   ),
 );
 
@@ -54,7 +67,7 @@ interface Placement {
 }
 interface WordSearchPuzzle {
   size: number;
-  grid: string[]; // GRID_SIZE rows of GRID_SIZE letters
+  grid: string[]; // `size` rows of `size` letters
   words: string[];
   placements: Placement[]; // where each word is (for the reveal / validation)
 }
@@ -93,17 +106,17 @@ function shuffle<T>(arr: T[], rand: () => number): T[] {
 }
 
 /**
- * Try to place `word` into `grid` (GRID_SIZE x GRID_SIZE, 0 = empty) in a
- * seeded-random position/direction. A placement is legal if every cell is
- * on-grid and either empty or already holds the same letter (overlaps are OK).
- * Returns the placement, or null if no legal spot was found in the tries.
+ * Try to place `word` into an `n`x`n` `grid` ("" = empty) in a seeded-random
+ * position/direction. A placement is legal if every cell is on-grid and either
+ * empty or already holds the same letter (overlaps are OK). Returns the
+ * placement, or null if no legal spot was found in the tries.
  */
 function placeWord(
   grid: string[],
+  n: number,
   word: string,
   rand: () => number,
 ): Placement | null {
-  const n = GRID_SIZE;
   for (let attempt = 0; attempt < 100; attempt++) {
     const [dr, dc] = DIRECTIONS[Math.floor(rand() * DIRECTIONS.length)];
     const row = Math.floor(rand() * n);
@@ -133,30 +146,38 @@ function placeWord(
 }
 
 /**
- * Build a word-search deterministically from `seed`, avoiding words in
- * `exclude`. Places WORD_COUNT words, fills the rest with random letters.
+ * Build a word-search deterministically from `seed` for `difficulty`, avoiding
+ * words in `exclude`. Grid size and word count come from the difficulty config;
+ * words are length-filtered to fit the grid. Fills leftover cells with random
+ * letters.
  */
 function generatePuzzle(
   seed: number,
+  difficulty: Difficulty,
   exclude: Set<string>,
 ): WordSearchPuzzle {
   const rand = mulberry32(seed);
-  const n = GRID_SIZE;
+  const cfg = DIFFICULTY[difficulty];
+  const n = cfg.size;
 
+  const lengthOk = (w: string) =>
+    w.length >= cfg.minWordLen && w.length <= cfg.maxWordLen;
+  const pool = ALL_WORDS.filter(lengthOk);
   const candidates = shuffle(
-    ALL_WORDS.filter((w) => !exclude.has(w)),
+    pool.filter((w) => !exclude.has(w)),
     rand,
   );
-  const usable = candidates.length >= WORD_COUNT * 3 ? candidates : shuffle(ALL_WORDS, rand);
+  const usable =
+    candidates.length >= cfg.wordCount * 3 ? candidates : shuffle(pool, rand);
 
   const grid = new Array<string>(n * n).fill("");
   const placements: Placement[] = [];
   const words: string[] = [];
 
   for (const word of usable) {
-    if (words.length >= WORD_COUNT) break;
+    if (words.length >= cfg.wordCount) break;
     if (words.includes(word)) continue;
-    const placement = placeWord(grid, word, rand);
+    const placement = placeWord(grid, n, word, rand);
     if (placement) {
       placements.push(placement);
       words.push(word);
@@ -199,33 +220,54 @@ function dateKeyFromDayNumber(dayNum: number): string {
   return new Date(dayNum * 86_400_000).toISOString().slice(0, 10);
 }
 
-// --- Storage (shared ProfileTable; PK=WORDSEARCH#<date>, SK=PUZZLE) --------
+// --- Storage (shared ProfileTable; PK=WORDSEARCH#<date>, SK=PUZZLE#<DIFF>) --
 
-async function getStored(date: string): Promise<WordSearchPuzzle | null> {
+function skFor(difficulty: Difficulty): string {
+  return `PUZZLE#${difficulty.toUpperCase()}`;
+}
+
+async function getStored(
+  date: string,
+  difficulty: Difficulty,
+): Promise<WordSearchPuzzle | null> {
   const res = await ddb.send(
     new GetCommand({
       TableName: TABLE_NAME,
-      Key: { PK: `WORDSEARCH#${date}`, SK: "PUZZLE" },
+      Key: { PK: `WORDSEARCH#${date}`, SK: skFor(difficulty) },
     }),
   );
   return (res.Item?.puzzle as WordSearchPuzzle) ?? null;
 }
 
-async function storeDay(date: string, puzzle: WordSearchPuzzle): Promise<void> {
+async function storeDay(
+  date: string,
+  difficulty: Difficulty,
+  puzzle: WordSearchPuzzle,
+): Promise<void> {
   await ddb.send(
     new PutCommand({
       TableName: TABLE_NAME,
-      Item: { PK: `WORDSEARCH#${date}`, SK: "PUZZLE", date, puzzle },
+      Item: {
+        PK: `WORDSEARCH#${date}`,
+        SK: skFor(difficulty),
+        date,
+        difficulty,
+        puzzle,
+      },
     }),
   );
 }
 
-/** Words used across the NO_REPEAT_DAYS days before `beforeDayNum`. */
-async function recentWords(beforeDayNum: number): Promise<Set<string>> {
+/** Words used in this difficulty across the NO_REPEAT_DAYS days before
+ *  `beforeDayNum` (per-difficulty so each track avoids its own repeats). */
+async function recentWords(
+  beforeDayNum: number,
+  difficulty: Difficulty,
+): Promise<Set<string>> {
   const used = new Set<string>();
   const reads: Promise<WordSearchPuzzle | null>[] = [];
   for (let i = 1; i <= NO_REPEAT_DAYS; i++) {
-    reads.push(getStored(dateKeyFromDayNumber(beforeDayNum - i)));
+    reads.push(getStored(dateKeyFromDayNumber(beforeDayNum - i), difficulty));
   }
   for (const p of await Promise.all(reads)) {
     if (p) for (const w of p.words) used.add(w);
@@ -233,19 +275,30 @@ async function recentWords(beforeDayNum: number): Promise<Set<string>> {
   return used;
 }
 
+/** Distinct seed per day AND difficulty so the three puzzles differ. */
+function seedFor(dayNum: number, difficulty: Difficulty): number {
+  const offset = difficulty === "easy" ? 0 : difficulty === "medium" ? 1 : 2;
+  return dayNum * 3 + offset;
+}
+
 async function todaysPuzzle(
+  difficulty: Difficulty,
   force = false,
-): Promise<{ date: string; puzzle: WordSearchPuzzle }> {
+): Promise<{ date: string; difficulty: Difficulty; puzzle: WordSearchPuzzle }> {
   const date = dateKey();
   if (!force) {
-    const existing = await getStored(date);
-    if (existing) return { date, puzzle: existing };
+    const existing = await getStored(date, difficulty);
+    if (existing) return { date, difficulty, puzzle: existing };
   }
   const dayNum = dayNumber();
-  const exclude = await recentWords(dayNum);
-  const puzzle = generatePuzzle(dayNum, exclude);
-  await storeDay(date, puzzle);
-  return { date, puzzle };
+  const exclude = await recentWords(dayNum, difficulty);
+  const puzzle = generatePuzzle(seedFor(dayNum, difficulty), difficulty, exclude);
+  await storeDay(date, difficulty, puzzle);
+  return { date, difficulty, puzzle };
+}
+
+function parseDifficulty(v: string | undefined): Difficulty {
+  return v === "easy" ? "easy" : v === "hard" ? "hard" : "medium";
 }
 
 // HTTP handler.
@@ -256,24 +309,28 @@ export const handler = async (
   if (method === "OPTIONS") return { statusCode: 204, headers: CORS, body: "" };
 
   const path = event.requestContext?.http?.path ?? event.rawPath ?? "";
+  const difficulty = parseDifficulty(event.queryStringParameters?.difficulty);
   try {
     if (path.endsWith("/wordsearch/random")) {
       const puzzle = generatePuzzle(
         Math.floor(Math.random() * 2 ** 31),
+        difficulty,
         new Set(),
       );
-      return json(200, { date: null, puzzle });
+      return json(200, { date: null, difficulty, puzzle });
     }
     const force = event.queryStringParameters?.force != null;
-    const { date, puzzle } = await todaysPuzzle(force);
-    return json(200, { date, puzzle, ...(force ? { regenerated: true } : {}) });
+    const res = await todaysPuzzle(difficulty, force);
+    return json(200, { ...res, ...(force ? { regenerated: true } : {}) });
   } catch (err) {
     console.error("wordsearch handler error", err);
     return json(500, { message: "Internal error." });
   }
 };
 
-// EventBridge cron: pre-generate today's puzzle.
+// EventBridge cron: pre-generate all three difficulties for today.
 export const scheduled = async (): Promise<void> => {
-  await todaysPuzzle();
+  await todaysPuzzle("easy");
+  await todaysPuzzle("medium");
+  await todaysPuzzle("hard");
 };

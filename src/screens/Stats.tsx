@@ -9,7 +9,11 @@ import {
   updateSettings,
   useProfile,
 } from "../lib/stats/useProfile";
-import type { DrawCount, SudokuDifficulty } from "../lib/stats/types";
+import type {
+  DrawCount,
+  SudokuDifficulty,
+  WordSearchDifficulty,
+} from "../lib/stats/types";
 import { VERSION_LABEL } from "../lib/version";
 import "./Stats.css";
 
@@ -99,6 +103,7 @@ export default function Stats() {
 
   const drawCount = profile.settings.solitaireDrawCount;
   const sudokuDifficulty = profile.settings.sudokuDifficulty;
+  const wordsearchDifficulty = profile.settings.wordsearchDifficulty;
 
   return (
     <div className="stats">
@@ -341,6 +346,31 @@ export default function Stats() {
                   onClick={() => updateSettings({ sudokuDifficulty: d })}
                 >
                   {d === "easy" ? "Easy" : "Regular"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="setting-row">
+            <div>
+              <span className="label">Word Search size</span>
+              <div className="setting-hint">
+                Grid size for the daily — any level counts for the streak
+              </div>
+            </div>
+            <div
+              className="segmented"
+              role="group"
+              aria-label="Word Search difficulty"
+            >
+              {(["easy", "medium", "hard"] as WordSearchDifficulty[]).map((d) => (
+                <button
+                  key={d}
+                  className={`segment ${wordsearchDifficulty === d ? "active" : ""}`}
+                  aria-pressed={wordsearchDifficulty === d}
+                  onClick={() => updateSettings({ wordsearchDifficulty: d })}
+                >
+                  {d === "easy" ? "Easy" : d === "medium" ? "Medium" : "Hard"}
                 </button>
               ))}
             </div>

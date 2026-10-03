@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { recordWordSearchComplete } from "../../lib/stats/useProfile";
+import {
+  recordWordSearchComplete,
+  updateSettings,
+  useProfile,
+} from "../../lib/stats/useProfile";
 import { dayNumberForKey, todayKey } from "../../lib/daily";
+import type { WordSearchDifficulty } from "../../lib/stats/types";
 import {
   type WordSearchPuzzle,
   lineBetween,
@@ -40,6 +45,9 @@ function saveFound(storageId: string, found: string[]): void {
 }
 
 export default function WordSearchScreen() {
+  const profile = useProfile();
+  const difficulty = profile.settings.wordsearchDifficulty;
+
   const [dayKey, setDayKey] = useState(() => todayKey());
   const today = useMemo(() => new Date(), [dayKey]);
   useEffect(() => {
@@ -86,25 +94,25 @@ export default function WordSearchScreen() {
       loadedPracticeSeed.current = practiceSeed;
       setLoad({ status: "loading" });
       (async () => {
-        const p = await getRandomWordSearch();
+        const p = await getRandomWordSearch(difficulty);
         if (cancelled) return;
-        if (p) apply(p, `practice-${practiceSeed}`);
+        if (p) apply(p, `practice-${practiceSeed}-${difficulty}`);
         else setLoad({ status: "error" });
       })();
     } else {
       loadedPracticeSeed.current = null;
       setLoad({ status: "loading" });
       (async () => {
-        const res = await getTodaysWordSearch();
+        const res = await getTodaysWordSearch(difficulty);
         if (cancelled) return;
-        if (res) apply(res.puzzle, `daily-${res.date}`);
+        if (res) apply(res.puzzle, `daily-${res.date}-${difficulty}`);
         else setLoad({ status: "error" });
       })();
     }
     return () => {
       cancelled = true;
     };
-  }, [isPractice, practiceSeed, dayKey]);
+  }, [isPractice, practiceSeed, difficulty, dayKey]);
 
   const solved = !!puzzle && found.length === puzzle.words.length;
 
@@ -198,6 +206,10 @@ export default function WordSearchScreen() {
     setPracticeSeed(null);
   }, []);
 
+  const setDifficulty = useCallback((d: WordSearchDifficulty) => {
+    updateSettings({ wordsearchDifficulty: d });
+  }, []);
+
   const dateLabel = today.toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -253,6 +265,27 @@ export default function WordSearchScreen() {
             {found.length}/{puzzle.words.length} found
           </span>
         </div>
+
+        {/* Difficulty picker (daily only) — bigger grid = harder; any level
+            counts for the single streak. */}
+        {!isPractice && (
+          <div
+            className="segmented ws-diff"
+            role="group"
+            aria-label="Word Search difficulty"
+          >
+            {(["easy", "medium", "hard"] as WordSearchDifficulty[]).map((d) => (
+              <button
+                key={d}
+                className={`segment ${difficulty === d ? "active" : ""}`}
+                aria-pressed={difficulty === d}
+                onClick={() => setDifficulty(d)}
+              >
+                {d === "easy" ? "Easy" : d === "medium" ? "Medium" : "Hard"}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="ws-practice-row">
           {isPractice ? (
