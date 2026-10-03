@@ -77,8 +77,10 @@ export default function SolitaireScreen() {
     resumed.current?.history ?? [],
   );
 
-  // Hint: card ids to briefly highlight, and whether to pulse the stock.
-  const [hintCardIds, setHintCardIds] = useState<Set<string>>(new Set());
+  // Hint: the card to move ("from"), where it lands ("to"), and whether to
+  // pulse the stock. From/to are styled differently so the suggestion is clear.
+  const [hintFromId, setHintFromId] = useState<string | null>(null);
+  const [hintToId, setHintToId] = useState<string | null>(null);
   const [hintStock, setHintStock] = useState(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -157,7 +159,8 @@ export default function SolitaireScreen() {
     setDismissedDeadEnd(false);
     setFreshDeal(true);
     setHistory([]);
-    setHintCardIds(new Set());
+    setHintFromId(null);
+    setHintToId(null);
     setHintStock(false);
     startedAt.current = Date.now();
     recordedResult.current = false;
@@ -283,32 +286,45 @@ export default function SolitaireScreen() {
     const hint = findHint(state);
 
     if (hintTimer.current) clearTimeout(hintTimer.current);
-    setHintCardIds(new Set());
+    setHintFromId(null);
+    setHintToId(null);
     setHintStock(false);
 
     if (hint.kind === "move") {
-      const ids = new Set<string>();
-      const srcId = cardIdAt(hint.from, hint.cardIndex);
-      if (srcId) ids.add(srcId);
-      // Highlight the destination's current top card too, if any.
+      // The card to pick up (source).
+      setHintFromId(cardIdAt(hint.from, hint.cardIndex));
+      // Where it lands: the destination pile's current top card, if any. An
+      // empty tableau column (e.g. a King move) has no card to tag — the source
+      // highlight alone is enough there.
       if (hint.to.kind === "tableau") {
         const col = state.tableau[hint.to.index];
-        if (col.length > 0) ids.add(col[col.length - 1].id);
+        setHintToId(col.length > 0 ? col[col.length - 1].id : null);
       } else if (hint.to.kind === "foundation") {
         const f = state.foundations[hint.to.index];
-        if (f.length > 0) ids.add(f[f.length - 1].id);
+        setHintToId(f.length > 0 ? f[f.length - 1].id : null);
       }
-      setHintCardIds(ids);
     } else if (hint.kind === "draw") {
       setHintStock(true);
     }
     // hint.kind === "none": nothing to show (dead end / no move).
 
     hintTimer.current = setTimeout(() => {
-      setHintCardIds(new Set());
+      setHintFromId(null);
+      setHintToId(null);
       setHintStock(false);
-    }, 1600);
+    }, 2200);
   }, [autoFinishing, state, cardIdAt]);
+
+  // Hint props for a given card id: whether it's highlighted and, if so, which
+  // role (the card to move vs. where it lands) so PlayingCard styles it.
+  const hintProps = useCallback(
+    (cardId: string): { hinted: boolean; hintRole?: "from" | "to" } => {
+      if (cardId === hintFromId) return { hinted: true, hintRole: "from" };
+      if (cardId === hintToId) return { hinted: true, hintRole: "to" };
+      return { hinted: false };
+    },
+    [hintFromId, hintToId],
+  );
 
   // Tap logic: if nothing selected, try auto-move; if that fails, select.
   // If something selected, treat the new tap as a destination.
@@ -625,7 +641,7 @@ export default function SolitaireScreen() {
                         card={card}
                         animate
                         entrance
-                        hinted={hintCardIds.has(card.id)}
+                        {...hintProps(card.id)}
                         className={`waste-card ${
                           drag?.cards.some((c) => c.id === card.id)
                             ? "dragging-src"
@@ -676,7 +692,7 @@ export default function SolitaireScreen() {
                     <PlayingCard
                       card={pile[pile.length - 1]}
                       animate
-                      hinted={hintCardIds.has(pile[pile.length - 1].id)}
+                      {...hintProps(pile[pile.length - 1].id)}
                       selected={isSelected(to, pile.length - 1)}
                       onPointerDown={(e) =>
                         onCardPointerDown(to, pile.length - 1, e)
@@ -733,7 +749,7 @@ export default function SolitaireScreen() {
                       }
                       className={`stacked ${dragging ? "dragging-src" : ""}`}
                       style={{ top: `${offsetForIndex(column, cardIndex)}px` }}
-                      hinted={hintCardIds.has(card.id)}
+                      {...hintProps(card.id)}
                       selected={isSelected(to, cardIndex)}
                       onPointerDown={
                         card.faceUp

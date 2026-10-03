@@ -13,6 +13,12 @@ interface Props {
   selected?: boolean;
   /** Briefly highlight this card as part of a hint. */
   hinted?: boolean;
+  /**
+   * Which end of a hinted move this card is: "from" (the card to move) or "to"
+   * (where it should land). Drives distinct styling so the suggestion reads as
+   * "move THIS onto THAT". Ignored unless `hinted` is set.
+   */
+  hintRole?: "from" | "to";
   /** Enable framer-motion layout animation (movement between parents). */
   animate?: boolean;
   /**
@@ -52,6 +58,7 @@ export default function PlayingCard({
   onPointerDown,
   selected,
   hinted = false,
+  hintRole,
   animate = false,
   layoutId,
   entrance = false,
@@ -98,7 +105,9 @@ export default function PlayingCard({
       {...layoutProps}
       {...entranceProps}
       transition={transition}
-      className={`card-outer ${hinted ? "hinted" : ""} ${className ?? ""}`}
+      className={`card-outer ${
+        hinted ? `hinted hinted-${hintRole ?? "from"}` : ""
+      } ${className ?? ""}`}
       style={style}
       onClick={onClick}
       onPointerDown={onPointerDown}
