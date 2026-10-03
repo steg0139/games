@@ -63,9 +63,19 @@ jobs:
         working-directory: infra
         run: npm ci
 
+      # A per-run secret token enables the force-regenerate call below. It's
+      # generated fresh each deploy and never stored anywhere, so there's
+      # nothing to manage. The Lambda gets it via CDK context; we reuse the
+      # same value to authorize the curl.
+      - name: Generate regen token
+        id: regen
+        run: echo "token=$(openssl rand -hex 24)" >> "$GITHUB_OUTPUT"
+
       - name: Deploy backend stack
         working-directory: infra
-        run: npx cdk deploy "$BACKEND_STACK" --require-approval never
+        run: >-
+          npx cdk deploy "$BACKEND_STACK" --require-approval never
+          -c regenToken="${{ steps.regen.outputs.token }}"
 
       - name: Read API URL from backend stack
         id: api
@@ -80,6 +90,19 @@ jobs:
           fi
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
           echo "Resolved API URL: $API_URL"
+
+      # Refresh today's stored crossword so a clue/word-pool change takes effect
+      # immediately instead of waiting for the next midnight-Central rollover.
+      # Non-fatal: a hiccup here shouldn't fail the whole deploy.
+      - name: Regenerate today's crossword
+        run: |
+          CODE=$(curl -s -o /tmp/regen.json -w "%{http_code}" \
+            "${{ steps.api.outputs.api_url }}/crossword/today?force=${{ steps.regen.outputs.token }}")
+          echo "HTTP $CODE"
+          cat /tmp/regen.json || true
+          if [ "$CODE" != "200" ]; then
+            echo "::warning::Force-regenerate returned HTTP $CODE (continuing)"
+          fi
 
       # --- Frontend build (deps + tests already run above) ---------------
       - name: Build frontend
