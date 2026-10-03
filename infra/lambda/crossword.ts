@@ -196,15 +196,21 @@ async function recentWords(beforeDayNum: number): Promise<Set<string>> {
   return used;
 }
 
-/** Get (or generate+store) the canonical puzzle for today. */
-async function todaysPuzzle(): Promise<{ date: string; puzzle: Puzzle }> {
+/**
+ * Get the canonical puzzle for today, generating + storing it if absent.
+ * When `force` is true, (re)generate and overwrite even if one is stored — used
+ * to refresh a day's puzzle after a clue/word-pool change.
+ */
+async function todaysPuzzle(force = false): Promise<{ date: string; puzzle: Puzzle }> {
   const date = dateKey();
-  const existing = await getStored(date);
-  if (existing) return { date, puzzle: existing.puzzle };
+  if (!force) {
+    const existing = await getStored(date);
+    if (existing) return { date, puzzle: existing.puzzle };
+  }
 
   const dayNum = dayNumber();
   const exclude = await recentWords(dayNum);
-  // Seed by the UTC day number so on-demand and cron produce the same puzzle
+  // Seed by the day number so on-demand and cron produce the same puzzle
   // (both see the same prior-60-day exclusion set once the day has started).
   const { puzzle, words } = generatePuzzle(dayNum, exclude);
   await storeDay(date, { puzzle, words });
@@ -228,9 +234,17 @@ export const handler = async (
       );
       return json(200, { date: null, puzzle });
     }
-    // Default: today's canonical puzzle.
-    const { date, puzzle } = await todaysPuzzle();
-    return json(200, { date, puzzle });
+    // Force-regenerate today's puzzle (overwrite the stored one) when the
+    // request carries the correct secret token. Lets us refresh the current
+    // day after a clue/word-pool change without waiting for the next rollover.
+    // Honored only if REGEN_TOKEN is configured and matches exactly.
+    const token = event.queryStringParameters?.force;
+    const secret = process.env.REGEN_TOKEN;
+    const force = !!secret && token === secret;
+
+    // Default: today's canonical puzzle (regenerated when forced).
+    const { date, puzzle } = await todaysPuzzle(force);
+    return json(200, { date, puzzle, ...(force ? { regenerated: true } : {}) });
   } catch (err) {
     console.error("crossword handler error", err);
     return json(500, { message: "Internal error." });

@@ -14,6 +14,14 @@ export class CardGamesStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // Secret token that enables force-regenerating the current day's crossword
+    // (GET /crossword/today?force=<token>). Supplied at deploy time via CDK
+    // context (`-c regenToken=...`) or the REGEN_TOKEN env var, so it's never
+    // committed. If unset, the force path is simply disabled.
+    const regenToken =
+      (this.node.tryGetContext("regenToken") as string | undefined) ??
+      process.env.REGEN_TOKEN;
+
     // Single-table design. PK = DEVICE#<id>, SK = "PROFILE".
     // On-demand billing keeps this near-free for a personal app.
     const table = new dynamodb.Table(this, "ProfileTable", {
@@ -92,7 +100,11 @@ export class CardGamesStack extends cdk.Stack {
       memorySize: 512, // layout generation is a little CPU-heavy
       timeout: cdk.Duration.seconds(15),
       logGroup: crosswordLogGroup,
-      environment: { TABLE_NAME: table.tableName },
+      environment: {
+        TABLE_NAME: table.tableName,
+        // Only set when provided; absence disables the force-regen path.
+        ...(regenToken ? { REGEN_TOKEN: regenToken } : {}),
+      },
       bundling: {
         minify: true,
         externalModules: ["@aws-sdk/*"],
