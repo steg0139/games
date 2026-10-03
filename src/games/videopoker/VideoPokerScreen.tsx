@@ -25,6 +25,9 @@ export default function VideoPokerScreen() {
     newGame(loadBankroll()),
   );
   const recordedResult = useRef(false);
+  // Raw typed digits while the bet field is focused (unclamped). null = not
+  // editing; the field then tracks state.bet.
+  const [betDraft, setBetDraft] = useState<string | null>(null);
 
   useEffect(() => {
     saveBankroll(state.bankroll);
@@ -45,19 +48,40 @@ export default function VideoPokerScreen() {
   }, [state.phase, state.result, state.payout, state.bankroll]);
 
   const adjustBet = useCallback((delta: number) => {
+    setBetDraft(null);
     setState((s) => setBet(s, s.bet + delta));
   }, []);
   // Bet all remaining chips (setBet clamps to the bankroll).
   const maxBet = useCallback(() => {
+    setBetDraft(null);
     setState((s) => setBet(s, s.bankroll));
   }, []);
-  // Free-typed bet: keep digits only; setBet clamps to the legal range.
+  // Free typing: hold exactly the typed digits (unclamped) until blur, so a
+  // value like "10" isn't snapped to the minimum when you type "1".
   const typeBet = useCallback((raw: string) => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    const value = digits === "" ? 0 : parseInt(digits, 10);
-    setState((s) => setBet(s, value));
+    setBetDraft(raw.replace(/[^0-9]/g, ""));
   }, []);
-  const startHand = useCallback(() => setState((s) => deal(s)), []);
+  // On blur, clamp to [MIN_BET, bankroll] (below min -> min, above bankroll ->
+  // bankroll) via setBet, then stop editing.
+  const commitBet = useCallback(() => {
+    setBetDraft((draft) => {
+      if (draft !== null) {
+        const value = draft === "" ? 0 : parseInt(draft, 10);
+        setState((s) => setBet(s, value));
+      }
+      return null;
+    });
+  }, []);
+  const startHand = useCallback(() => {
+    setState((s) => {
+      const committed =
+        betDraft !== null
+          ? setBet(s, betDraft === "" ? 0 : parseInt(betDraft, 10))
+          : s;
+      return deal(committed);
+    });
+    setBetDraft(null);
+  }, [betDraft]);
   const doDraw = useCallback(() => setState((s) => draw(s)), []);
   const continueGame = useCallback(() => setState((s) => nextHand(s)), []);
   const toggle = useCallback(
@@ -159,8 +183,12 @@ export default function VideoPokerScreen() {
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    value={state.bet === 0 ? "" : state.bet}
+                    value={betDraft ?? String(state.bet)}
                     onChange={(e) => typeBet(e.target.value)}
+                    onBlur={commitBet}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
                     aria-label="Bet amount"
                   />
                 </span>

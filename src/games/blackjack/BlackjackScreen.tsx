@@ -48,6 +48,9 @@ export default function BlackjackScreen() {
     newGame(loadBankroll()),
   );
   const recordedRound = useRef(false);
+  // While the bet field is focused, holds the raw typed digits (unclamped) so
+  // free typing isn't snapped mid-entry. null = not editing (show state.bet).
+  const [betDraft, setBetDraft] = useState<string | null>(null);
 
   // Persist the wallet whenever it changes.
   useEffect(() => {
@@ -69,23 +72,49 @@ export default function BlackjackScreen() {
   }, [state.phase, state.hands, state.bankroll]);
 
   const adjustBet = useCallback((delta: number) => {
+    setBetDraft(null);
     setState((s) => setBet(s, s.bet + delta));
   }, []);
 
   // Bet all remaining chips (setBet clamps to the bankroll).
   const maxBet = useCallback(() => {
+    setBetDraft(null);
     setState((s) => setBet(s, s.bankroll));
   }, []);
 
-  // Free-typed bet. Keep only digits; empty is allowed transiently (stored as
-  // 0 in the field) and clamped to the legal range by setBet on each change.
+  // Free typing: while the field is focused we hold exactly what was typed
+  // (digits only) in `betDraft` without clamping, so a value like "10" isn't
+  // snapped to the minimum the instant you type "1". Clamping to
+  // [MIN_BET, bankroll] happens on blur (commitBet).
   const typeBet = useCallback((raw: string) => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    const value = digits === "" ? 0 : parseInt(digits, 10);
-    setState((s) => setBet(s, value));
+    setBetDraft(raw.replace(/[^0-9]/g, ""));
   }, []);
 
-  const startRound = useCallback(() => setState((s) => deal(s)), []);
+  // Commit the typed bet when the field loses focus: empty / below the minimum
+  // becomes MIN_BET; above the bankroll becomes the bankroll (both via setBet's
+  // clamp). Then clear the draft so the field tracks state.bet again.
+  const commitBet = useCallback(() => {
+    setBetDraft((draft) => {
+      if (draft !== null) {
+        const value = draft === "" ? 0 : parseInt(draft, 10);
+        setState((s) => setBet(s, value));
+      }
+      return null;
+    });
+  }, []);
+
+  const startRound = useCallback(() => {
+    // Commit any unblurred typed bet before dealing, then deal with the
+    // clamped bet. setBet is a no-op if there's no draft.
+    setState((s) => {
+      const committed =
+        betDraft !== null
+          ? setBet(s, betDraft === "" ? 0 : parseInt(betDraft, 10))
+          : s;
+      return deal(committed);
+    });
+    setBetDraft(null);
+  }, [betDraft]);
   const doHit = useCallback(() => setState((s) => hit(s)), []);
   const doStand = useCallback(() => setState((s) => stand(s)), []);
   const doSplit = useCallback(() => setState((s) => split(s)), []);
@@ -222,8 +251,12 @@ export default function BlackjackScreen() {
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    value={state.bet === 0 ? "" : state.bet}
+                    value={betDraft ?? String(state.bet)}
                     onChange={(e) => typeBet(e.target.value)}
+                    onBlur={commitBet}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
                     aria-label="Bet amount"
                   />
                 </span>
