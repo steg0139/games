@@ -235,12 +235,12 @@ export const handler = async (
       return json(200, { date: null, puzzle });
     }
     // Force-regenerate today's puzzle (overwrite the stored one) when the
-    // request carries the correct secret token. Lets us refresh the current
-    // day after a clue/word-pool change without waiting for the next rollover.
-    // Honored only if REGEN_TOKEN is configured and matches exactly.
-    const token = event.queryStringParameters?.force;
-    const secret = process.env.REGEN_TOKEN;
-    const force = !!secret && token === secret;
+    // request carries ?force (any truthy value). Manual, occasional use to
+    // refresh the current day after a clue/word-pool change — generation is
+    // deterministic, so re-forcing yields the same puzzle unless the pool
+    // changed. Unauthenticated by design: this is a tiny personal app and the
+    // action is harmless (only ever rewrites *today* with the canonical puzzle).
+    const force = event.queryStringParameters?.force != null;
 
     // Default: today's canonical puzzle (regenerated when forced).
     const { date, puzzle } = await todaysPuzzle(force);
