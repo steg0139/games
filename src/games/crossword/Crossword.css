@@ -142,9 +142,15 @@
 }
 
 .cw-current-text {
+  /* Take the remaining width and wrap freely so a clue is never clipped or
+     pushed off the edge; min-width:0 lets a flex item actually wrap. */
+  flex: 1;
+  min-width: 0;
   font-size: 15px;
   line-height: 1.35;
   color: var(--text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .cw-current-text.muted {
