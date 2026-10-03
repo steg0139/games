@@ -12,6 +12,12 @@ import "./styles/global.css";
 // Crossword pulls in react-crossword, styled-components, and a large puzzle
 // data file. Lazy-load it so it doesn't weigh down the initial app load.
 const CrosswordScreen = lazy(() => import("./games/crossword/CrosswordScreen"));
+// Daily Sudoku + Word Search are self-contained; lazy-load them too so they
+// only ship when opened.
+const SudokuScreen = lazy(() => import("./games/sudoku/SudokuScreen"));
+const WordSearchScreen = lazy(
+  () => import("./games/wordsearch/WordSearchScreen"),
+);
 
 const router = createBrowserRouter([
   {
@@ -27,6 +33,22 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<div className="route-loading">Loading…</div>}>
             <CrosswordScreen />
+          </Suspense>
+        ),
+      },
+      {
+        path: "sudoku",
+        element: (
+          <Suspense fallback={<div className="route-loading">Loading…</div>}>
+            <SudokuScreen />
+          </Suspense>
+        ),
+      },
+      {
+        path: "wordsearch",
+        element: (
+          <Suspense fallback={<div className="route-loading">Loading…</div>}>
+            <WordSearchScreen />
           </Suspense>
         ),
       },

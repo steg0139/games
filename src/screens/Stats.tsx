@@ -9,7 +9,7 @@ import {
   updateSettings,
   useProfile,
 } from "../lib/stats/useProfile";
-import type { DrawCount } from "../lib/stats/types";
+import type { DrawCount, SudokuDifficulty } from "../lib/stats/types";
 import { VERSION_LABEL } from "../lib/version";
 import "./Stats.css";
 
@@ -38,7 +38,15 @@ function GameResetControl({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const label = game === "solitaire" ? "Solitaire" : "Blackjack";
+  const LABELS: Record<GameKey, string> = {
+    solitaire: "Solitaire",
+    blackjack: "Blackjack",
+    videopoker: "Video Poker",
+    crossword: "Crossword",
+    sudoku: "Sudoku",
+    wordsearch: "Word Search",
+  };
+  const label = LABELS[game];
   return (
     <div className="game-reset">
       {!confirming ? (
@@ -66,6 +74,8 @@ export default function Stats() {
   const b = profile.blackjack;
   const v = profile.videopoker;
   const x = profile.crossword;
+  const su = profile.sudoku;
+  const ws = profile.wordsearch;
 
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -88,6 +98,7 @@ export default function Stats() {
   };
 
   const drawCount = profile.settings.solitaireDrawCount;
+  const sudokuDifficulty = profile.settings.sudokuDifficulty;
 
   return (
     <div className="stats">
@@ -228,6 +239,56 @@ export default function Stats() {
         </section>
 
         <section className="stats-section">
+          <h2>⊞ Daily Sudoku</h2>
+          <div className="stat-grid">
+            <div className="stat">
+              <div className="value">{su.completed}</div>
+              <div className="label">Completed</div>
+            </div>
+            <div className="stat">
+              <div className="value">{su.currentStreak}</div>
+              <div className="label">Current streak</div>
+            </div>
+            <div className="stat">
+              <div className="value">{su.bestStreak}</div>
+              <div className="label">Best streak</div>
+            </div>
+          </div>
+          <GameResetControl
+            game="sudoku"
+            confirming={confirmingGame === "sudoku"}
+            onAsk={() => setConfirmingGame("sudoku")}
+            onCancel={() => setConfirmingGame(null)}
+            onConfirm={() => handleResetGame("sudoku")}
+          />
+        </section>
+
+        <section className="stats-section">
+          <h2>🔍 Daily Word Search</h2>
+          <div className="stat-grid">
+            <div className="stat">
+              <div className="value">{ws.completed}</div>
+              <div className="label">Completed</div>
+            </div>
+            <div className="stat">
+              <div className="value">{ws.currentStreak}</div>
+              <div className="label">Current streak</div>
+            </div>
+            <div className="stat">
+              <div className="value">{ws.bestStreak}</div>
+              <div className="label">Best streak</div>
+            </div>
+          </div>
+          <GameResetControl
+            game="wordsearch"
+            confirming={confirmingGame === "wordsearch"}
+            onAsk={() => setConfirmingGame("wordsearch")}
+            onCancel={() => setConfirmingGame(null)}
+            onConfirm={() => handleResetGame("wordsearch")}
+          />
+        </section>
+
+        <section className="stats-section">
           <h2>Settings</h2>
           <div className="setting-row">
             <span className="label">Sound effects</span>
@@ -263,6 +324,27 @@ export default function Stats() {
           <p className="sync-note">
             Changing the draw mode starts a new Solitaire game.
           </p>
+
+          <div className="setting-row">
+            <div>
+              <span className="label">Sudoku difficulty</span>
+              <div className="setting-hint">
+                Your daily Sudoku level — either counts for the streak
+              </div>
+            </div>
+            <div className="segmented" role="group" aria-label="Sudoku difficulty">
+              {(["easy", "regular"] as SudokuDifficulty[]).map((d) => (
+                <button
+                  key={d}
+                  className={`segment ${sudokuDifficulty === d ? "active" : ""}`}
+                  aria-pressed={sudokuDifficulty === d}
+                  onClick={() => updateSettings({ sudokuDifficulty: d })}
+                >
+                  {d === "easy" ? "Easy" : "Regular"}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="setting-row">
             <div>

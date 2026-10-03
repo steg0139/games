@@ -33,14 +33,31 @@ export interface CrosswordStats {
   lastCompletedDay: number | null; // dayNumber of last completion (for streak)
 }
 
+/** Daily-completion stats (one shared streak). Used by Sudoku and Word Search.
+ *  For Sudoku, completing EITHER difficulty counts for the single streak. */
+export interface DailyStats {
+  completed: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastCompletedDay: number | null;
+}
+
+export type SudokuStats = DailyStats;
+export type WordSearchStats = DailyStats;
+
 /** Solitaire draw mode: flip 1 or 3 cards from the stock per draw. */
 export type DrawCount = 1 | 3;
+
+/** Sudoku difficulty the player picks for the daily (one streak either way). */
+export type SudokuDifficulty = "easy" | "regular";
 
 export interface Settings {
   soundEnabled: boolean;
   solitaireDrawCount: DrawCount;
   /** Automatically complete the game once a win is guaranteed. */
   solitaireAutoFinish: boolean;
+  /** Preferred difficulty for the daily Sudoku. */
+  sudokuDifficulty: SudokuDifficulty;
 }
 
 export interface Profile {
@@ -50,6 +67,8 @@ export interface Profile {
   blackjack: BlackjackStats;
   videopoker: VideoPokerStats;
   crossword: CrosswordStats;
+  sudoku: SudokuStats;
+  wordsearch: WordSearchStats;
   updatedAt: number; // epoch ms of last local mutation
 }
 
@@ -95,6 +114,18 @@ export function emptyCrosswordStats(): CrosswordStats {
   };
 }
 
+function emptyDailyStats(): DailyStats {
+  return { completed: 0, currentStreak: 0, bestStreak: 0, lastCompletedDay: null };
+}
+
+export function emptySudokuStats(): SudokuStats {
+  return emptyDailyStats();
+}
+
+export function emptyWordSearchStats(): WordSearchStats {
+  return emptyDailyStats();
+}
+
 export function defaultProfile(): Profile {
   return {
     version: PROFILE_VERSION,
@@ -102,11 +133,14 @@ export function defaultProfile(): Profile {
       soundEnabled: true,
       solitaireDrawCount: 3,
       solitaireAutoFinish: true,
+      sudokuDifficulty: "regular",
     },
     solitaire: emptySolitaireStats(),
     blackjack: emptyBlackjackStats(),
     videopoker: emptyVideoPokerStats(),
     crossword: emptyCrosswordStats(),
+    sudoku: emptySudokuStats(),
+    wordsearch: emptyWordSearchStats(),
     updatedAt: 0,
   };
 }

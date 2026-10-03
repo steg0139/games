@@ -1,0 +1,179 @@
+.sudoku {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sudoku-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.sudoku-heading {
+  margin-bottom: 12px;
+}
+
+.sudoku-date {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.sudoku-diff {
+  margin-bottom: 12px;
+}
+
+.sudoku-practice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sudoku-practice-row .icon-btn {
+  font-size: 13px;
+  padding: 7px 12px;
+}
+
+.sudoku-solved {
+  text-align: center;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  background: var(--accent-strong);
+  color: #04202e;
+}
+
+/* The 9x9 grid. A thick outer border + 3x3 box dividers via per-cell borders. */
+.sudoku-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  width: 100%;
+  max-width: min(100%, 30rem);
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;
+  border: 2px solid var(--text);
+  box-sizing: border-box;
+  background: var(--surface);
+  touch-action: manipulation;
+}
+
+.sudoku-cell {
+  appearance: none;
+  border: 0.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: min(5.5vw, 1.5rem);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  aspect-ratio: 1 / 1;
+}
+
+/* 3x3 box dividers: thicker lines on the inner box edges. */
+.sudoku-cell.box-right {
+  border-right: 2px solid var(--text);
+}
+.sudoku-cell.box-bottom {
+  border-bottom: 2px solid var(--text);
+}
+
+/* Given (clue) numbers are bold and non-editable-looking. */
+.sudoku-cell.given {
+  font-weight: 800;
+  color: var(--text);
+  cursor: default;
+}
+
+/* Player entries are the accent color so they stand out from givens. */
+.sudoku-cell.entry {
+  color: var(--accent);
+}
+
+.sudoku-cell.same-value {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+
+.sudoku-cell.selected {
+  background: var(--accent);
+  color: #04202e;
+}
+
+.sudoku-cell.conflict {
+  background: color-mix(in srgb, #ef4444 28%, var(--surface));
+  color: #fca5a5;
+}
+
+.sudoku-cell.selected.conflict {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* Loading / error. */
+.sudoku-status {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Number pad: 1-9 + erase pinned at the bottom. */
+.sudoku-pad {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+
+.sudoku-key {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  font-size: 20px;
+  font-weight: 600;
+  padding: 12px 0;
+  cursor: pointer;
+}
+
+.sudoku-key:active {
+  background: var(--surface-hover);
+}
+
+.sudoku-key:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* A digit that's been placed 9 times (all used) dims to show it's complete. */
+.sudoku-key.done {
+  opacity: 0.45;
+}
+
+.sudoku-erase {
+  grid-column: span 1;
+  font-size: 18px;
+}

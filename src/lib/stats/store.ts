@@ -33,6 +33,8 @@ function readLocal(): Profile {
       blackjack: { ...defaultProfile().blackjack, ...parsed.blackjack },
       videopoker: { ...defaultProfile().videopoker, ...parsed.videopoker },
       crossword: { ...defaultProfile().crossword, ...parsed.crossword },
+      sudoku: { ...defaultProfile().sudoku, ...parsed.sudoku },
+      wordsearch: { ...defaultProfile().wordsearch, ...parsed.wordsearch },
     };
   } catch {
     return defaultProfile();

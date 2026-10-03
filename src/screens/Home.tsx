@@ -36,6 +36,18 @@ const GAMES: GameEntry[] = [
     blurb: "A fresh interlocking puzzle every day.",
     suits: "▦",
   },
+  {
+    to: "/sudoku",
+    title: "Daily Sudoku",
+    blurb: "Fill the grid. Easy or regular, your call.",
+    suits: "⊞",
+  },
+  {
+    to: "/wordsearch",
+    title: "Daily Word Search",
+    blurb: "Find every hidden word in the letter grid.",
+    suits: "🔍",
+  },
 ];
 
 export default function Home() {
