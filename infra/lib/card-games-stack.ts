@@ -147,6 +147,123 @@ export class CardGamesStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(crosswordCronFn)],
     });
 
+    // --- Daily Sudoku: generator Lambda + nightly cron + read routes --------
+    const sudokuLogGroup = new logs.LogGroup(this, "SudokuFnLogs", {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const sudokuFn = new lambdaNode.NodejsFunction(this, "SudokuFn", {
+      entry: path.join(__dirname, "..", "lambda", "sudoku.ts"),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      memorySize: 512, // backtracking + uniqueness check
+      timeout: cdk.Duration.seconds(15),
+      logGroup: sudokuLogGroup,
+      environment: { TABLE_NAME: table.tableName },
+      bundling: { minify: true, externalModules: ["@aws-sdk/*"] },
+    });
+    table.grantReadWriteData(sudokuFn);
+
+    const sudokuIntegration = new HttpLambdaIntegration(
+      "SudokuIntegration",
+      sudokuFn,
+    );
+    api.addRoutes({
+      path: "/sudoku/today",
+      methods: [HttpMethod.GET],
+      integration: sudokuIntegration,
+    });
+    api.addRoutes({
+      path: "/sudoku/random",
+      methods: [HttpMethod.GET],
+      integration: sudokuIntegration,
+    });
+
+    const sudokuCronFn = new lambdaNode.NodejsFunction(this, "SudokuCronFn", {
+      entry: path.join(__dirname, "..", "lambda", "sudoku.ts"),
+      handler: "scheduled",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(30),
+      logGroup: sudokuLogGroup,
+      environment: { TABLE_NAME: table.tableName },
+      bundling: { minify: true, externalModules: ["@aws-sdk/*"] },
+    });
+    table.grantReadWriteData(sudokuCronFn);
+
+    new events.Rule(this, "SudokuDailyRule", {
+      schedule: events.Schedule.cron({ minute: "10", hour: "5,6" }),
+      targets: [new targets.LambdaFunction(sudokuCronFn)],
+    });
+
+    // --- Daily Word Search: generator Lambda + nightly cron + read routes ---
+    const wordsearchLogGroup = new logs.LogGroup(this, "WordSearchFnLogs", {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const wordsearchFn = new lambdaNode.NodejsFunction(this, "WordSearchFn", {
+      entry: path.join(__dirname, "..", "lambda", "wordsearch.ts"),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      memorySize: 512,
+      timeout: cdk.Duration.seconds(15),
+      logGroup: wordsearchLogGroup,
+      environment: { TABLE_NAME: table.tableName },
+      bundling: {
+        minify: true,
+        externalModules: ["@aws-sdk/*"],
+        // The word pool is bundled, not externalized.
+        loader: { ".json": "json" },
+      },
+    });
+    table.grantReadWriteData(wordsearchFn);
+
+    const wordsearchIntegration = new HttpLambdaIntegration(
+      "WordSearchIntegration",
+      wordsearchFn,
+    );
+    api.addRoutes({
+      path: "/wordsearch/today",
+      methods: [HttpMethod.GET],
+      integration: wordsearchIntegration,
+    });
+    api.addRoutes({
+      path: "/wordsearch/random",
+      methods: [HttpMethod.GET],
+      integration: wordsearchIntegration,
+    });
+
+    const wordsearchCronFn = new lambdaNode.NodejsFunction(
+      this,
+      "WordSearchCronFn",
+      {
+        entry: path.join(__dirname, "..", "lambda", "wordsearch.ts"),
+        handler: "scheduled",
+        runtime: lambda.Runtime.NODEJS_22_X,
+        architecture: lambda.Architecture.ARM_64,
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(30),
+        logGroup: wordsearchLogGroup,
+        environment: { TABLE_NAME: table.tableName },
+        bundling: {
+          minify: true,
+          externalModules: ["@aws-sdk/*"],
+          loader: { ".json": "json" },
+        },
+      },
+    );
+    table.grantReadWriteData(wordsearchCronFn);
+
+    new events.Rule(this, "WordSearchDailyRule", {
+      schedule: events.Schedule.cron({ minute: "10", hour: "5,6" }),
+      targets: [new targets.LambdaFunction(wordsearchCronFn)],
+    });
+
     new cdk.CfnOutput(this, "ApiUrl", {
       value: api.apiEndpoint,
       description:
