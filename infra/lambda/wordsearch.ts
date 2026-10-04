@@ -14,6 +14,7 @@ import {
   PutCommand,
 } from "@aws-sdk/lib-dynamodb";
 import wordPool from "./word-pool.json";
+import { isBlockedWord } from "./word-blocklist";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -42,7 +43,9 @@ const ALL_WORDS: string[] = Array.from(
   new Set(
     (wordPool as { answer: string }[])
       .map((w) => w.answer.toUpperCase())
-      .filter((w) => /^[A-Z]+$/.test(w) && w.length >= 3 && w.length <= 12),
+      .filter((w) => /^[A-Z]+$/.test(w) && w.length >= 3 && w.length <= 12)
+      // Runtime safety net on top of the build-time filter.
+      .filter((w) => !isBlockedWord(w)),
   ),
 );
 

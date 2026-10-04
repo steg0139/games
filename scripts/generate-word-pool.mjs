@@ -16,6 +16,7 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import wordnet from "wordnet";
+import { isBlockedEntry, isBlockedWord } from "./word-blocklist.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -161,7 +162,10 @@ async function main() {
   const candidates = (await resp.text())
     .split("\n")
     .map((w) => w.trim().toLowerCase())
-    .filter((w) => /^[a-z]{4,8}$/.test(w));
+    .filter((w) => /^[a-z]{4,8}$/.test(w))
+    // Drop blocked answer words up front (profanity, slurs, sexual/violent,
+    // drugs, religiously-sensitive terms). See scripts/word-blocklist.mjs.
+    .filter((w) => !isBlockedWord(w));
 
   await wordnet.init();
 
@@ -198,8 +202,12 @@ async function main() {
 
     let clue = null;
     for (const d of ordered) {
-      clue = clueFromDef(d, answer);
-      if (clue) {
+      const candidate = clueFromDef(d, answer);
+      // Skip a clue that itself contains a blocked word (e.g. DEVIL clued as
+      // "Satan", or a fill-in-the-blank mentioning death). Keep trying other
+      // senses — the word may have a clean clue elsewhere.
+      if (candidate && !isBlockedEntry(answer, candidate)) {
+        clue = candidate;
         if (clue.startsWith('"')) blankCount++;
         else if (clue === synonymClue(d, answer)) synCount++;
         else glossCount++;

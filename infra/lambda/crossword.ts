@@ -16,6 +16,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import clg from "crossword-layout-generator";
 import wordPool from "./word-pool.json";
+import { isBlockedEntry } from "./word-blocklist";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -32,7 +33,10 @@ interface WordClue {
   clue: string;
 }
 type Pool = WordClue[];
-const POOL = wordPool as Pool;
+// Runtime safety net: even though word-pool.json is filtered at build time,
+// drop any entry whose answer or clue contains a blocked word, so a stale pool
+// can never surface inappropriate content.
+const POOL = (wordPool as Pool).filter((w) => !isBlockedEntry(w.answer, w.clue));
 
 interface LayoutItem {
   clue: string;
