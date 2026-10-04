@@ -61,6 +61,8 @@ export interface Settings {
   solitaireAutoFinish: boolean;
   /** Preferred difficulty for the daily Sudoku. */
   sudokuDifficulty: SudokuDifficulty;
+  /** Highlight all cells sharing the selected cell's number. */
+  sudokuHighlightSame: boolean;
   /** Preferred difficulty (grid size) for the daily Word Search. */
   wordsearchDifficulty: WordSearchDifficulty;
 }
@@ -139,6 +141,7 @@ export function defaultProfile(): Profile {
       solitaireDrawCount: 3,
       solitaireAutoFinish: true,
       sudokuDifficulty: "regular",
+      sudokuHighlightSame: true,
       wordsearchDifficulty: "medium",
     },
     solitaire: emptySolitaireStats(),

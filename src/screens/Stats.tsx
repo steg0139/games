@@ -353,6 +353,26 @@ export default function Stats() {
 
           <div className="setting-row">
             <div>
+              <span className="label">Highlight same number</span>
+              <div className="setting-hint">
+                Highlight matching numbers when you select a Sudoku cell
+              </div>
+            </div>
+            <button
+              className="toggle"
+              role="switch"
+              aria-checked={profile.settings.sudokuHighlightSame}
+              aria-label="Toggle same-number highlight"
+              onClick={() =>
+                updateSettings({
+                  sudokuHighlightSame: !profile.settings.sudokuHighlightSame,
+                })
+              }
+            />
+          </div>
+
+          <div className="setting-row">
+            <div>
               <span className="label">Word Search size</span>
               <div className="setting-hint">
                 Grid size for the daily — any level counts for the streak

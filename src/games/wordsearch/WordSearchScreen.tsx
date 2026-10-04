@@ -116,12 +116,25 @@ export default function WordSearchScreen() {
 
   const solved = !!puzzle && found.length === puzzle.words.length;
 
-  // Persistent highlight: all cells covered by already-found words.
-  const foundCells = useMemo(() => {
-    const set = new Set<number>();
-    if (!puzzle) return set;
-    for (const w of found) for (const c of placementCells(puzzle, w)) set.add(c);
-    return set;
+  // Found words as line segments (in viewBox units: 1 per cell, centered on
+  // cells) for the rounded capsule overlay.
+  const foundLines = useMemo(() => {
+    if (!puzzle) return [] as { word: string; x1: number; y1: number; x2: number; y2: number }[];
+    const lines: { word: string; x1: number; y1: number; x2: number; y2: number }[] = [];
+    for (const w of found) {
+      const cells = placementCells(puzzle, w);
+      if (cells.length === 0) continue;
+      const first = cells[0];
+      const last = cells[cells.length - 1];
+      const center = (idx: number) => ({
+        x: (idx % puzzle.size) + 0.5,
+        y: Math.floor(idx / puzzle.size) + 0.5,
+      });
+      const a = center(first);
+      const b = center(last);
+      lines.push({ word: w, x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    }
+    return lines;
   }, [puzzle, found]);
 
   const selectionSet = useMemo(
@@ -327,7 +340,6 @@ export default function WordSearchScreen() {
           {letters.map((ch, i) => {
             const cls = [
               "ws-cell",
-              foundCells.has(i) ? "found" : "",
               selectionSet.has(i) ? "selecting" : "",
             ]
               .filter(Boolean)
@@ -338,6 +350,28 @@ export default function WordSearchScreen() {
               </div>
             );
           })}
+
+          {/* Found words drawn as rounded capsule lines. The SVG uses a
+              size×size viewBox (one unit per cell), so a line from the center
+              of the first cell to the center of the last cell lands exactly on
+              the letters — and rounded caps look clean on diagonals. */}
+          <svg
+            className="ws-lines"
+            viewBox={`0 0 ${puzzle.size} ${puzzle.size}`}
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden="true"
+          >
+            {foundLines.map((ln) => (
+              <line
+                key={ln.word}
+                x1={ln.x1}
+                y1={ln.y1}
+                x2={ln.x2}
+                y2={ln.y2}
+                className="ws-line"
+              />
+            ))}
+          </svg>
         </div>
 
         <ul className="ws-words">

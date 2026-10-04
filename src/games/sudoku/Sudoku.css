@@ -168,9 +168,12 @@
   pointer-events: none;
 }
 
-/* A digit that's been placed 9 times (all used) dims to show it's complete. */
+/* A digit that's been placed all 9 times is struck through (and dimmed) to show
+   it's used up. line-through draws across the number itself. */
 .sudoku-key.done {
-  opacity: 0.45;
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 
 .sudoku-erase {

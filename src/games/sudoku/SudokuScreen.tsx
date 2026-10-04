@@ -55,6 +55,7 @@ function saveProgress(storageId: string, entries: number[]): void {
 export default function SudokuScreen() {
   const profile = useProfile();
   const difficulty = profile.settings.sudokuDifficulty;
+  const highlightSame = profile.settings.sudokuHighlightSame;
 
   // Central-day key; refetch across midnight when open/backgrounded.
   const [dayKey, setDayKey] = useState(() => todayKey());
@@ -308,9 +309,9 @@ export default function SudokuScreen() {
             const isGiven = givens[i] !== 0;
             const isSel = selected === i;
             const inConflict = conflicts.has(i);
-            // Highlight all cells sharing the selected cell's value.
+            // Highlight all cells sharing the selected cell's value (optional).
             const sameValue =
-              selectedValue > 0 && val === selectedValue && !isSel;
+              highlightSame && selectedValue > 0 && val === selectedValue && !isSel;
             const cls = [
               "sudoku-cell",
               isGiven ? "given" : "entry",
