@@ -172,6 +172,35 @@ export default function SudokuScreen() {
     if (!isPractice) saveProgress(storageId, next);
   }, [solved, selected, givens, isPractice, storageId, entries]);
 
+  // Hint: fill one correct number. Prefer the selected cell if it's empty or
+  // wrong; otherwise pick a random cell that's still blank or incorrect. Givens
+  // are never touched. Filling the last cell this way still completes the game.
+  const giveHint = useCallback(() => {
+    if (solved || !givens || !solution) return;
+    const wrongOrEmpty: number[] = [];
+    for (let i = 0; i < CELLS; i++) {
+      if (givens[i] !== 0) continue; // can't change a given
+      if (entries[i] !== solution[i]) wrongOrEmpty.push(i);
+    }
+    if (wrongOrEmpty.length === 0) return; // nothing to help with
+
+    // Prefer the selected cell when it's one of the fixable ones.
+    const pick =
+      selected !== null && wrongOrEmpty.includes(selected)
+        ? selected
+        : wrongOrEmpty[Math.floor(Math.random() * wrongOrEmpty.length)];
+
+    const next = entries.slice();
+    next[pick] = solution[pick];
+    setEntries(next);
+    setSelected(pick);
+    if (!isPractice) saveProgress(storageId, next);
+    if (isSolved(next, solution)) {
+      setSolved(true);
+      if (!isPractice) recordSudokuComplete(dayNumberForKey(todayKey()));
+    }
+  }, [solved, givens, solution, entries, selected, isPractice, storageId]);
+
   const startPractice = useCallback(() => {
     setSolved(false);
     setSelected(null);
@@ -254,6 +283,14 @@ export default function SudokuScreen() {
         </Link>
         <h1>{title}</h1>
         <span className="status-line">{formatClock(elapsed)}</span>
+        <button
+          className="icon-btn"
+          onClick={giveHint}
+          disabled={solved}
+          aria-label="Fill in one correct number"
+        >
+          Hint
+        </button>
       </header>
 
       <div className="sudoku-body">
