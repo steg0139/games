@@ -15,7 +15,8 @@ describe("SolitaireScreen", () => {
     );
     expect(screen.getByRole("heading", { name: "Solitaire" })).toBeInTheDocument();
     expect(screen.getByText("New")).toBeInTheDocument();
-    // Move counter starts at 0.
-    expect(screen.getByText("0 moves")).toBeInTheDocument();
+    // The header shows a combined timer · move-count readout, starting at
+    // "0:00 · 0" (timer may have ticked to 0:01 by assertion time).
+    expect(screen.getByText(/^\d+:\d{2} · 0$/)).toBeInTheDocument();
   });
 });
