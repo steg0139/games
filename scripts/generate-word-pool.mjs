@@ -145,15 +145,39 @@ function clueLeaksAnswer(clue, answer) {
   return tokens.some((t) => t.length >= 3 && sharesStem(t, answer));
 }
 
-/** Build the best available clue for an answer from one WordNet sense. */
-function clueFromDef(def, answer) {
-  const clue =
-    synonymClue(def, answer) ??
-    fillBlankClue(def.glossary ?? "", answer) ??
-    glossClue(def.glossary ?? "", answer);
-  if (!clue) return null;
-  if (clueLeaksAnswer(clue, answer)) return null;
-  return clue;
+/** A clue is acceptable if it exists and doesn't leak the answer's stem. */
+function usable(clue, answer) {
+  return clue && !clueLeaksAnswer(clue, answer) ? clue : null;
+}
+
+/**
+ * Pick the best clue for an answer across ALL of its WordNet senses, in strict
+ * quality tiers so we never settle for a weak fill-in-the-blank when a synonym
+ * or definition exists anywhere:
+ *   1. a one-word (or short-phrase) SYNONYM from any sense  — e.g. "Acquire"
+ *   2. a short DEFINITION (first gloss clause) from any sense
+ *   3. a fill-in-the-blank, only as a last resort
+ * `defs` should already be ordered with the best senses first (noun/adjective)
+ * so tier 1/2 prefer those. Returns { clue, kind } or null.
+ */
+function bestClue(defs, answer) {
+  // Tier 1: synonyms.
+  for (const d of defs) {
+    const c = usable(synonymClue(d, answer), answer);
+    if (c) return { clue: c, kind: "synonym" };
+  }
+  // Tier 2: short definitions.
+  for (const d of defs) {
+    const c = usable(glossClue(d.glossary ?? "", answer), answer);
+    if (c) return { clue: c, kind: "gloss" };
+  }
+  // Tier 3: fill-in-the-blank (last resort — WordNet examples are rarely
+  // famous phrases, so this is only used when nothing better exists).
+  for (const d of defs) {
+    const c = usable(fillBlankClue(d.glossary ?? "", answer), answer);
+    if (c) return { clue: c, kind: "blank" };
+  }
+  return null;
 }
 
 async function main() {
@@ -200,21 +224,16 @@ async function main() {
       return score(a) - score(b);
     });
 
-    let clue = null;
-    for (const d of ordered) {
-      const candidate = clueFromDef(d, answer);
-      // Skip a clue that itself contains a blocked word (e.g. DEVIL clued as
-      // "Satan", or a fill-in-the-blank mentioning death). Keep trying other
-      // senses — the word may have a clean clue elsewhere.
-      if (candidate && !isBlockedEntry(answer, candidate)) {
-        clue = candidate;
-        if (clue.startsWith('"')) blankCount++;
-        else if (clue === synonymClue(d, answer)) synCount++;
-        else glossCount++;
-        break;
-      }
+    const best = bestClue(ordered, answer);
+    // Reject a clue that itself contains a blocked word (e.g. DEVIL clued as
+    // "Satan", or a fill-in-the-blank mentioning death). Rare enough that
+    // dropping the word is fine — the pool stays large.
+    if (best && !isBlockedEntry(answer, best.clue)) {
+      if (best.kind === "synonym") synCount++;
+      else if (best.kind === "gloss") glossCount++;
+      else blankCount++;
+      pool.push({ answer, clue: best.clue });
     }
-    if (clue) pool.push({ answer, clue });
   }
 
   const out = join(__dirname, "..", "infra", "lambda", "word-pool.json");
