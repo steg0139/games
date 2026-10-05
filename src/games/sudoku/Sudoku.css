@@ -168,12 +168,28 @@
   pointer-events: none;
 }
 
-/* A digit that's been placed all 9 times is struck through (and dimmed) to show
-   it's used up. line-through draws across the number itself. */
+/* A digit that's been placed all 9 times is "used up": dim it and draw a
+   diagonal line across the whole key (corner to corner), like crossing it off.
+   The line is a thin gradient band so it scales with the button. */
 .sudoku-key.done {
-  opacity: 0.5;
-  text-decoration: line-through;
-  text-decoration-thickness: 2px;
+  opacity: 0.6;
+  position: relative;
+  overflow: hidden;
+}
+
+.sudoku-key.done::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* A ~2px line from bottom-left to top-right. */
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    var(--text-muted) calc(50% - 1px),
+    var(--text-muted) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
 }
 
 .sudoku-erase {

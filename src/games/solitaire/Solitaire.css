@@ -5,6 +5,33 @@
   min-height: 0;
 }
 
+/* The header packs a lot in (title, timer+moves, Hint, Undo, New, sometimes
+   Auto-finish). Keep it on one line on small screens: let the title shrink and
+   ellipsize, keep the meta readout from shrinking, and tighten spacing +
+   button padding so nothing (e.g. "New") gets pushed off the edge. */
+.solitaire .app-bar {
+  gap: 8px;
+}
+
+.solitaire .app-bar h1 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.solitaire .app-bar .sol-meta {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.solitaire .app-bar .icon-btn,
+.solitaire .app-bar .btn-primary {
+  flex-shrink: 0;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
 .solitaire .felt {
   flex: 1;
   position: relative;

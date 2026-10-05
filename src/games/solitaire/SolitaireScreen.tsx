@@ -539,8 +539,9 @@ export default function SolitaireScreen() {
           ←
         </Link>
         <h1>Solitaire</h1>
-        <span className="status-line">{formatClock(elapsed)}</span>
-        <span className="status-line">{moves} moves</span>
+        <span className="status-line sol-meta">
+          {formatClock(elapsed)} · {moves}
+        </span>
         <button
           className="icon-btn"
           onClick={showHint}
