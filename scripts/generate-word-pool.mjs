@@ -9,9 +9,11 @@
 // definitions (and got truncated mid-sentence), which made puzzles unsolvable.
 // We instead build short, crossword-style clues, preferring in order:
 //   1. a one-word SYNONYM from the same WordNet synset (e.g. "Speedy" -> QUICK)
-//   2. a fill-in-the-blank from an example usage (e.g. "A ___ recovery")
-//   3. a SHORT gloss (first clause only), and only if it fits without trimming
-// Anything that would need mid-sentence truncation is rejected outright.
+//   2. a SHORT gloss (first clause only), and only if it fits without trimming
+// If a word has neither, it's DROPPED — we do not fall back to a
+// fill-in-the-blank from a WordNet example, because those are almost never
+// famous phrases and read as unsolvable ("___ payments"). A smaller pool of
+// fair clues beats a large one with impossible clues.
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -76,8 +78,14 @@ function clean(s) {
 /**
  * A single-word synonym clue from the synset's other words. Returns the best
  * (shortest, single-word) usable synonym, or null.
+ *
+ * Adverb senses are skipped: their "synonyms" are the worst as clues (e.g.
+ * CLEAN's adverb sense offers "plum/plumb" meaning "completely"). Nouns, verbs,
+ * and adjectives (incl. "adjective satellite") are allowed.
  */
 function synonymClue(def, answer) {
+  const type = def.meta?.synsetType ?? "";
+  if (/adverb/.test(type)) return null;
   const words = def.meta?.words ?? [];
   const candidates = words
     .map((w) => normalizeToken(w.word))
@@ -91,31 +99,6 @@ function synonymClue(def, answer) {
   if (!pick) return null;
   if (pick.length < MIN_CLUE_LEN || pick.length > MAX_CLUE_LEN) return null;
   return titleCase(pick);
-}
-
-/**
- * A fill-in-the-blank clue from a quoted example usage in the gloss, with the
- * answer (or a shared-stem word) blanked out. e.g. "a speedy recovery" ->
- * "A ___ recovery". Returns null if no example contains the answer.
- */
-function fillBlankClue(glossary, answer) {
-  const examples = [...glossary.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-  const ans = answer.toLowerCase();
-  for (const ex of examples) {
-    const words = ex.split(/\s+/);
-    const idx = words.findIndex((w) => {
-      const bare = w.replace(/[^a-zA-Z]/g, "").toLowerCase();
-      return bare === ans;
-    });
-    if (idx === -1) continue;
-    words[idx] = words[idx].replace(/[a-zA-Z]+/, "___");
-    const clue = clean(words.join(" "));
-    // Count the surrounding quotes toward the length budget.
-    if (clue.length >= MIN_CLUE_LEN && clue.length + 2 <= MAX_CLUE_LEN) {
-      return `"${titleCase(clue)}"`;
-    }
-  }
-  return null;
 }
 
 /**
@@ -152,13 +135,15 @@ function usable(clue, answer) {
 
 /**
  * Pick the best clue for an answer across ALL of its WordNet senses, in strict
- * quality tiers so we never settle for a weak fill-in-the-blank when a synonym
- * or definition exists anywhere:
+ * quality tiers:
  *   1. a one-word (or short-phrase) SYNONYM from any sense  — e.g. "Acquire"
  *   2. a short DEFINITION (first gloss clause) from any sense
- *   3. a fill-in-the-blank, only as a last resort
- * `defs` should already be ordered with the best senses first (noun/adjective)
- * so tier 1/2 prefer those. Returns { clue, kind } or null.
+ * If neither exists, we return null and the word is DROPPED from the pool —
+ * we no longer fall back to a fill-in-the-blank. WordNet's example sentences
+ * are almost never famous phrases, so blanks like "___ payments" (MONTHLY) or
+ * "The ___ party" (ROYAL) are unsolvable; a smaller pool of fair clues beats a
+ * larger one with impossible clues. `defs` should be ordered best-sense-first.
+ * Returns { clue, kind } or null.
  */
 function bestClue(defs, answer) {
   // Tier 1: synonyms.
@@ -170,12 +155,6 @@ function bestClue(defs, answer) {
   for (const d of defs) {
     const c = usable(glossClue(d.glossary ?? "", answer), answer);
     if (c) return { clue: c, kind: "gloss" };
-  }
-  // Tier 3: fill-in-the-blank (last resort — WordNet examples are rarely
-  // famous phrases, so this is only used when nothing better exists).
-  for (const d of defs) {
-    const c = usable(fillBlankClue(d.glossary ?? "", answer), answer);
-    if (c) return { clue: c, kind: "blank" };
   }
   return null;
 }
@@ -196,8 +175,8 @@ async function main() {
   const pool = [];
   const seen = new Set();
   let synCount = 0;
-  let blankCount = 0;
   let glossCount = 0;
+  let droppedNoClue = 0;
 
   for (const raw of candidates) {
     const answer = raw.toUpperCase();
@@ -225,13 +204,15 @@ async function main() {
     });
 
     const best = bestClue(ordered, answer);
+    if (!best) {
+      droppedNoClue++; // no synonym or clean definition — not puzzle-worthy
+      continue;
+    }
     // Reject a clue that itself contains a blocked word (e.g. DEVIL clued as
-    // "Satan", or a fill-in-the-blank mentioning death). Rare enough that
-    // dropping the word is fine — the pool stays large.
-    if (best && !isBlockedEntry(answer, best.clue)) {
+    // "Satan"). Rare enough that dropping the word is fine.
+    if (!isBlockedEntry(answer, best.clue)) {
       if (best.kind === "synonym") synCount++;
-      else if (best.kind === "gloss") glossCount++;
-      else blankCount++;
+      else glossCount++;
       pool.push({ answer, clue: best.clue });
     }
   }
@@ -240,7 +221,7 @@ async function main() {
   writeFileSync(out, JSON.stringify(pool), "utf8");
   console.log(`Wrote ${pool.length} words to ${out}`);
   console.log(
-    `  clue sources — synonym: ${synCount}, fill-blank: ${blankCount}, gloss: ${glossCount}`,
+    `  clue sources — synonym: ${synCount}, gloss: ${glossCount}; dropped (no good clue): ${droppedNoClue}`,
   );
 }
 
