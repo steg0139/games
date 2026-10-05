@@ -6,6 +6,7 @@ import {
   useProfile,
 } from "../../lib/stats/useProfile";
 import { dayNumberForKey, todayKey } from "../../lib/daily";
+import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import type { SudokuDifficulty } from "../../lib/stats/types";
 import {
   CELLS,
@@ -89,6 +90,12 @@ export default function SudokuScreen() {
   const givens = load.status === "ready" ? load.puzzle.givens : null;
   const solution = load.status === "ready" ? load.puzzle.solution : null;
   const storageId = load.status === "ready" ? load.storageId : "loading";
+
+  // Live play timer: runs once the puzzle is loaded and until it's solved.
+  const elapsed = useGameTimer(
+    load.status === "ready" ? `sudoku-${storageId}` : null,
+    load.status === "ready" && !solved,
+  );
 
   const loadedPracticeSeed = useRef<number | null>(null);
 
@@ -246,6 +253,7 @@ export default function SudokuScreen() {
           ←
         </Link>
         <h1>{title}</h1>
+        <span className="status-line">{formatClock(elapsed)}</span>
       </header>
 
       <div className="sudoku-body">

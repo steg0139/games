@@ -4,6 +4,7 @@ import { LayoutGroup } from "framer-motion";
 import PlayingCard from "../../components/PlayingCard";
 import { type Card, cardColor, rankValue, suitSymbol } from "../../lib/cards";
 import { recordSolitaireResult, useProfile } from "../../lib/stats/useProfile";
+import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import {
   type PileId,
   type SolitaireState,
@@ -68,6 +69,11 @@ export default function SolitaireScreen() {
   // should not replay the deal, so start at a non-zero id in that case.
   const [dealId, setDealId] = useState(resumed.current ? 1 : 0);
   const startedAt = useRef<number>(resumed.current?.startedAt ?? Date.now());
+  // Stable per-deal key for the play timer (changes on New, survives resume
+  // since startedAt is persisted in the saved game).
+  const [timerKey, setTimerKey] = useState<string>(
+    `solitaire-${startedAt.current}`,
+  );
   const recordedResult = useRef(false);
   // A resumed game shouldn't replay the deal-in animation; only fresh deals do.
   const [freshDeal, setFreshDeal] = useState(!resumed.current);
@@ -113,6 +119,9 @@ export default function SolitaireScreen() {
     [state, autoFinishing],
   );
   const showLossBanner = deadEnd && !dismissedDeadEnd;
+
+  // Live play timer: runs until the board is won or a dead end is reached.
+  const elapsed = useGameTimer(timerKey, !won && !deadEnd);
 
   // Keep the latest game snapshot in a ref so `reset` can decide whether to
   // record a loss without depending on (and being recreated by) render state.
@@ -163,6 +172,7 @@ export default function SolitaireScreen() {
     setHintToId(null);
     setHintStock(false);
     startedAt.current = Date.now();
+    setTimerKey(`solitaire-${startedAt.current}`);
     recordedResult.current = false;
   }, []);
 
@@ -529,6 +539,7 @@ export default function SolitaireScreen() {
           ←
         </Link>
         <h1>Solitaire</h1>
+        <span className="status-line">{formatClock(elapsed)}</span>
         <span className="status-line">{moves} moves</span>
         <button
           className="icon-btn"

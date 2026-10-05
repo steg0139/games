@@ -6,6 +6,7 @@ import {
   useProfile,
 } from "../../lib/stats/useProfile";
 import { dayNumberForKey, todayKey } from "../../lib/daily";
+import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import type { WordSearchDifficulty } from "../../lib/stats/types";
 import {
   type WordSearchPuzzle,
@@ -115,6 +116,12 @@ export default function WordSearchScreen() {
   }, [isPractice, practiceSeed, difficulty, dayKey]);
 
   const solved = !!puzzle && found.length === puzzle.words.length;
+
+  // Live play timer: runs once the puzzle is loaded and until all words found.
+  const elapsed = useGameTimer(
+    load.status === "ready" ? `wordsearch-${storageId}` : null,
+    load.status === "ready" && !solved,
+  );
 
   // Found words as line segments (in viewBox units: 1 per cell, centered on
   // cells) for the rounded capsule overlay.
@@ -267,6 +274,7 @@ export default function WordSearchScreen() {
           ←
         </Link>
         <h1>{title}</h1>
+        <span className="status-line">{formatClock(elapsed)}</span>
       </header>
 
       <div className="ws-body">

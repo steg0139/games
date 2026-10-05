@@ -7,6 +7,7 @@ import {
   type CrosswordProviderImperative,
 } from "@jaredreisinger/react-crossword";
 import { recordCrosswordComplete } from "../../lib/stats/useProfile";
+import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import CrosswordKeyboard, {
   type ActiveClue,
   type Selection,
@@ -132,6 +133,12 @@ export default function CrosswordScreen() {
   const [solved, setSolved] = useState(false);
   const [active, setActive] = useState<ActiveClue | null>(null);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
+
+  // Live play timer: runs once the puzzle is loaded and until it's solved.
+  const elapsed = useGameTimer(
+    load.status === "ready" ? `crossword-${id}` : null,
+    load.status === "ready" && !solved,
+  );
 
   const cwRef = useRef<CrosswordProviderImperative>(null);
   const revealed = useRef<Set<string>>(new Set());
@@ -281,6 +288,7 @@ export default function CrosswordScreen() {
             ←
           </Link>
           <h1>{isPractice ? "Practice" : "Daily Crossword"}</h1>
+          <span className="status-line">{formatClock(elapsed)}</span>
           <button className="icon-btn" onClick={check} disabled={solved}>
             Check
           </button>
