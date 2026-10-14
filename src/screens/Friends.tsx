@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CLOUD_SYNC_ENABLED } from "../lib/config";
 import {
@@ -9,158 +9,9 @@ import {
   useProfile,
 } from "../lib/stats/useProfile";
 import { fetchPublicProfile } from "../lib/stats/sync";
-import {
-  type Friend,
-  type PublicProfile,
-  toPublicProfile,
-} from "../lib/stats/types";
+import { type Friend, type PublicProfile, toPublicProfile } from "../lib/stats/types";
+import { COMPARE_GAMES, type CompareGame, rankByStat } from "../lib/stats/compare";
 import "./Friends.css";
-
-// Fastest time as m:ss, or an em dash when unset.
-function fmtTime(seconds: number | null): string {
-  if (seconds === null) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function pct(n: number, d: number): string {
-  if (d === 0) return "—";
-  return `${Math.round((n / d) * 100)}%`;
-}
-
-// The rows of the comparison table: each pulls a comparable number (or string)
-// from a public profile. `better: "high" | "low"` marks which direction wins so
-// we can bold the leader.
-interface CompareRow {
-  label: string;
-  value: (p: PublicProfile) => string;
-  // Numeric key for determining the leader (null = not comparable / skip).
-  rank: (p: PublicProfile) => number | null;
-  better: "high" | "low";
-}
-
-const ROWS: CompareRow[] = [
-  {
-    label: "Solitaire wins",
-    value: (p) => String(p.solitaire.gamesWon),
-    rank: (p) => p.solitaire.gamesWon,
-    better: "high",
-  },
-  {
-    label: "Solitaire win rate",
-    value: (p) => pct(p.solitaire.gamesWon, p.solitaire.gamesPlayed),
-    rank: (p) =>
-      p.solitaire.gamesPlayed === 0
-        ? null
-        : p.solitaire.gamesWon / p.solitaire.gamesPlayed,
-    better: "high",
-  },
-  {
-    label: "Solitaire best time",
-    value: (p) => fmtTime(p.solitaire.bestTimeSeconds),
-    rank: (p) => p.solitaire.bestTimeSeconds,
-    better: "low",
-  },
-  {
-    label: "Blackjack best bankroll",
-    value: (p) => `$${p.blackjack.bestBankroll}`,
-    rank: (p) => p.blackjack.bestBankroll,
-    better: "high",
-  },
-  {
-    label: "Blackjack biggest win",
-    value: (p) => `$${p.blackjack.biggestWin}`,
-    rank: (p) => p.blackjack.biggestWin,
-    better: "high",
-  },
-  {
-    label: "Blackjack biggest bet",
-    value: (p) => `$${p.blackjack.biggestBet}`,
-    rank: (p) => p.blackjack.biggestBet,
-    better: "high",
-  },
-  {
-    label: "Video Poker best bankroll",
-    value: (p) => `$${p.videopoker.bestBankroll}`,
-    rank: (p) => p.videopoker.bestBankroll,
-    better: "high",
-  },
-  {
-    label: "Video Poker best payout",
-    value: (p) => `$${p.videopoker.bestPayout}`,
-    rank: (p) => p.videopoker.bestPayout,
-    better: "high",
-  },
-  {
-    label: "Crossword best time",
-    value: (p) => fmtTime(p.crossword.bestTimeSeconds),
-    rank: (p) => p.crossword.bestTimeSeconds,
-    better: "low",
-  },
-  {
-    label: "Crossword streak",
-    value: (p) => String(p.crossword.bestStreak),
-    rank: (p) => p.crossword.bestStreak,
-    better: "high",
-  },
-  {
-    label: "Sudoku best time",
-    value: (p) => fmtTime(p.sudoku.bestTimeSeconds),
-    rank: (p) => p.sudoku.bestTimeSeconds,
-    better: "low",
-  },
-  {
-    label: "Sudoku hints used",
-    value: (p) => String(p.sudoku.hintsUsed),
-    rank: (p) => p.sudoku.hintsUsed,
-    better: "low",
-  },
-  {
-    label: "Sudoku streak",
-    value: (p) => String(p.sudoku.bestStreak),
-    rank: (p) => p.sudoku.bestStreak,
-    better: "high",
-  },
-  {
-    label: "Word Search best time",
-    value: (p) => fmtTime(p.wordsearch.bestTimeSeconds),
-    rank: (p) => p.wordsearch.bestTimeSeconds,
-    better: "low",
-  },
-  {
-    label: "Word Search streak",
-    value: (p) => String(p.wordsearch.bestStreak),
-    rank: (p) => p.wordsearch.bestStreak,
-    better: "high",
-  },
-];
-
-// Decide which column (by index) leads a row, or null for a tie / no data.
-function leaderIndex(row: CompareRow, cols: PublicProfile[]): number | null {
-  let best: number | null = null;
-  let bestIdx: number | null = null;
-  let tie = false;
-  cols.forEach((p, i) => {
-    const r = row.rank(p);
-    if (r === null) return;
-    if (best === null) {
-      best = r;
-      bestIdx = i;
-      return;
-    }
-    const wins = row.better === "high" ? r > best : r < best;
-    const same = r === best;
-    if (wins) {
-      best = r;
-      bestIdx = i;
-      tie = false;
-    } else if (same) {
-      tie = true;
-    }
-  });
-  return tie ? null : bestIdx;
-}
 
 export default function Friends() {
   const profile = useProfile();
@@ -172,6 +23,9 @@ export default function Friends() {
   // Fetched public profiles for each added friend, keyed by code.
   const [remote, setRemote] = useState<Record<string, PublicProfile | null>>({});
   const [loadingCodes, setLoadingCodes] = useState<Set<string>>(new Set());
+  // Leaderboard navigation: which game tab + which stat sub-tab.
+  const [gameTab, setGameTab] = useState<CompareGame>("solitaire");
+  const [statId, setStatId] = useState<string>(COMPARE_GAMES[0].stats[0].id);
 
   // Keep the name field in sync if the profile changes elsewhere.
   useEffect(() => {
@@ -281,18 +135,38 @@ export default function Friends() {
     return pub?.displayName || f.displayName || "Player";
   };
 
-  // Columns for the comparison table: you first, then friends we have a public
-  // profile for.
+  // Players in the leaderboard: you (always) plus every friend whose public
+  // profile we've fetched.
   const me = toPublicProfile(profile);
+  const myCode = profile.friendCode;
   const friendCols = profile.friends
     .map((f) => remote[f.code])
     .filter((p): p is PublicProfile => !!p);
-  const columns: PublicProfile[] = [me, ...friendCols];
-  const headerNames = [
-    profile.displayName || "You",
-    ...friendCols.map((p) => p.displayName || "Player"),
-  ];
+  const players: PublicProfile[] = [me, ...friendCols];
   const canCompare = friendCols.length > 0;
+
+  const activeGame =
+    COMPARE_GAMES.find((g) => g.id === gameTab) ?? COMPARE_GAMES[0];
+  const activeStat =
+    activeGame.stats.find((s) => s.id === statId) ?? activeGame.stats[0];
+
+  // Switch game tab: default its stat sub-tab to the first stat.
+  const selectGame = useCallback((game: CompareGame) => {
+    setGameTab(game);
+    const g = COMPARE_GAMES.find((x) => x.id === game);
+    if (g) setStatId(g.stats[0].id);
+  }, []);
+
+  const ranked = useMemo(
+    () => rankByStat(activeStat, players),
+    // players is derived from profile + remote each render; key on their codes
+    // and the active stat so we recompute only when they actually change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeStat, profile, remote],
+  );
+
+  const nameFor = (p: PublicProfile): string =>
+    p.code === myCode ? profile.displayName || "You" : p.displayName || "Player";
 
   return (
     <div className="friends">
@@ -423,39 +297,53 @@ export default function Friends() {
 
         {canCompare && (
           <section className="stats-section">
-            <h2>Compare</h2>
-            <div className="compare-scroll">
-              <table className="compare-table">
-                <thead>
-                  <tr>
-                    <th />
-                    {headerNames.map((n, i) => (
-                      <th key={i} className={i === 0 ? "me-col" : ""}>
-                        {n}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {ROWS.map((row) => {
-                    const lead = leaderIndex(row, columns);
-                    return (
-                      <tr key={row.label}>
-                        <td className="row-label">{row.label}</td>
-                        {columns.map((p, i) => (
-                          <td
-                            key={i}
-                            className={lead === i ? "leader" : ""}
-                          >
-                            {row.value(p)}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <h2>Leaderboard</h2>
+
+            {/* Game tabs */}
+            <div className="lb-tabs" role="tablist" aria-label="Game">
+              {COMPARE_GAMES.map((g) => (
+                <button
+                  key={g.id}
+                  role="tab"
+                  aria-selected={g.id === gameTab}
+                  className={`lb-tab ${g.id === gameTab ? "active" : ""}`}
+                  onClick={() => selectGame(g.id)}
+                >
+                  {g.label}
+                </button>
+              ))}
             </div>
+
+            {/* Stat sub-tabs for the active game */}
+            <div className="lb-subtabs" role="tablist" aria-label="Stat">
+              {activeGame.stats.map((s) => (
+                <button
+                  key={s.id}
+                  role="tab"
+                  aria-selected={s.id === activeStat.id}
+                  className={`lb-subtab ${s.id === activeStat.id ? "active" : ""}`}
+                  onClick={() => setStatId(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Ranked rows: rank · name · value */}
+            <ol className="lb-list">
+              {ranked.map((entry, i) => (
+                <li
+                  key={entry.profile.code || i}
+                  className={`lb-row ${entry.profile.code === myCode ? "me" : ""}`}
+                >
+                  <span className="lb-rank">{entry.noData ? "—" : i + 1}</span>
+                  <span className="lb-name">{nameFor(entry.profile)}</span>
+                  <span className={`lb-value ${entry.noData ? "muted" : ""}`}>
+                    {entry.value}
+                  </span>
+                </li>
+              ))}
+            </ol>
           </section>
         )}
       </div>
