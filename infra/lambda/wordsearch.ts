@@ -14,6 +14,7 @@ import {
   PutCommand,
 } from "@aws-sdk/lib-dynamodb";
 import wordPool from "./word-pool.json";
+import longWords from "./wordsearch-long-words.json";
 import { isBlockedWord } from "./word-blocklist";
 
 const TABLE_NAME = process.env.TABLE_NAME!;
@@ -22,32 +23,51 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 type Difficulty = "easy" | "medium" | "hard";
 
 // Grid size + word count per difficulty. Bigger grid = harder. maxWordLen is
-// capped to the grid size so words always fit.
+// capped to the grid size so words always fit. `longWordMax` is how many
+// longer (8+ letter) words a puzzle may include; the actual count varies per
+// day (0..longWordMax) so long words show up occasionally, not every time.
 interface DiffConfig {
   size: number;
   wordCount: number;
   minWordLen: number;
   maxWordLen: number;
+  longWordMax: number;
 }
 const DIFFICULTY: Record<Difficulty, DiffConfig> = {
-  easy: { size: 8, wordCount: 6, minWordLen: 3, maxWordLen: 7 },
-  medium: { size: 12, wordCount: 10, minWordLen: 4, maxWordLen: 10 },
-  hard: { size: 15, wordCount: 14, minWordLen: 4, maxWordLen: 12 },
+  easy: { size: 8, wordCount: 6, minWordLen: 3, maxWordLen: 7, longWordMax: 0 },
+  medium: { size: 12, wordCount: 10, minWordLen: 4, maxWordLen: 11, longWordMax: 2 },
+  hard: { size: 15, wordCount: 14, minWordLen: 4, maxWordLen: 14, longWordMax: 3 },
 };
+
+// Threshold at which a word counts as "long" for the per-difficulty quota.
+const LONG_WORD_MIN = 8;
 
 const NO_REPEAT_DAYS = 30;
 
-// All clean candidate words from the crossword pool (3-12 letters). The
-// per-difficulty length window is applied when building each puzzle.
-const ALL_WORDS: string[] = Array.from(
+// Short candidate words from the shared crossword pool (3-8 letters).
+const SHORT_WORDS: string[] = Array.from(
   new Set(
     (wordPool as { answer: string }[])
       .map((w) => w.answer.toUpperCase())
-      .filter((w) => /^[A-Z]+$/.test(w) && w.length >= 3 && w.length <= 12)
+      .filter((w) => /^[A-Z]+$/.test(w) && w.length >= 3 && w.length <= 8)
       // Runtime safety net on top of the build-time filter.
       .filter((w) => !isBlockedWord(w)),
   ),
 );
+
+// Longer words (8-12 letters), word-search only, so medium/hard can include a
+// few long entries the clue-gated crossword pool doesn't carry.
+const LONG_WORDS: string[] = Array.from(
+  new Set(
+    (longWords as string[])
+      .map((w) => w.toUpperCase())
+      .filter((w) => /^[A-Z]+$/.test(w) && w.length >= LONG_WORD_MIN && w.length <= 14)
+      .filter((w) => !isBlockedWord(w)),
+  ),
+);
+
+// Full candidate set for a difficulty's length window.
+const ALL_WORDS: string[] = Array.from(new Set([...SHORT_WORDS, ...LONG_WORDS]));
 
 /** 8 directions as [dr, dc]. */
 const DIRECTIONS: [number, number][] = [
@@ -108,11 +128,24 @@ function shuffle<T>(arr: T[], rand: () => number): T[] {
   return a;
 }
 
+interface Candidate {
+  row: number;
+  col: number;
+  dr: number;
+  dc: number;
+  overlap: number; // how many letters land on existing matching letters
+}
+
 /**
- * Try to place `word` into an `n`x`n` `grid` ("" = empty) in a seeded-random
- * position/direction. A placement is legal if every cell is on-grid and either
- * empty or already holds the same letter (overlaps are OK). Returns the
- * placement, or null if no legal spot was found in the tries.
+ * Try to place `word` into an `n`x`n` `grid` ("" = empty), PREFERRING placements
+ * that overlap (cross) already-placed words so the puzzle interlocks more.
+ *
+ * We enumerate a seeded-random sample of legal positions/directions, score each
+ * by how many of its cells reuse an existing matching letter, and then bias the
+ * pick toward higher overlap: once any crossing placement exists we choose only
+ * among the max-overlap candidates (ties broken randomly). If nothing overlaps
+ * (e.g. the first word, or a word that can't cross), we fall back to a random
+ * legal spot. Deterministic for a given seed.
  */
 function placeWord(
   grid: string[],
@@ -120,7 +153,8 @@ function placeWord(
   word: string,
   rand: () => number,
 ): Placement | null {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const candidates: Candidate[] = [];
+  for (let attempt = 0; attempt < 160; attempt++) {
     const [dr, dc] = DIRECTIONS[Math.floor(rand() * DIRECTIONS.length)];
     const row = Math.floor(rand() * n);
     const col = Math.floor(rand() * n);
@@ -129,23 +163,33 @@ function placeWord(
     if (endR < 0 || endR >= n || endC < 0 || endC >= n) continue;
 
     let ok = true;
+    let overlap = 0;
     for (let i = 0; i < word.length; i++) {
-      const r = row + dr * i;
-      const c = col + dc * i;
-      const existing = grid[r * n + c];
-      if (existing !== "" && existing !== word[i]) {
+      const existing = grid[(row + dr * i) * n + (col + dc * i)];
+      if (existing === "") continue;
+      if (existing === word[i]) overlap++;
+      else {
         ok = false;
         break;
       }
     }
-    if (!ok) continue;
-
-    for (let i = 0; i < word.length; i++) {
-      grid[(row + dr * i) * n + (col + dc * i)] = word[i];
-    }
-    return { word, row, col, dr, dc };
+    if (ok) candidates.push({ row, col, dr, dc, overlap });
   }
-  return null;
+  if (candidates.length === 0) return null;
+
+  // Prefer the most-overlapping placements. When some placement crosses an
+  // existing word, choose only among the best (max-overlap) ones; otherwise any
+  // legal spot is fine. Ties are broken by the seeded RNG for variety.
+  const maxOverlap = candidates.reduce((m, c) => Math.max(m, c.overlap), 0);
+  const best =
+    maxOverlap > 0 ? candidates.filter((c) => c.overlap === maxOverlap) : candidates;
+  const chosen = best[Math.floor(rand() * best.length)];
+
+  for (let i = 0; i < word.length; i++) {
+    grid[(chosen.row + chosen.dr * i) * n + (chosen.col + chosen.dc * i)] =
+      word[i];
+  }
+  return { word, row: chosen.row, col: chosen.col, dr: chosen.dr, dc: chosen.dc };
 }
 
 /**
@@ -162,29 +206,65 @@ function generatePuzzle(
   const rand = mulberry32(seed);
   const cfg = DIFFICULTY[difficulty];
   const n = cfg.size;
+  // Words must also physically fit the grid regardless of the config cap.
+  const fitMax = Math.min(cfg.maxWordLen, n);
 
   const lengthOk = (w: string) =>
-    w.length >= cfg.minWordLen && w.length <= cfg.maxWordLen;
-  const pool = ALL_WORDS.filter(lengthOk);
-  const candidates = shuffle(
-    pool.filter((w) => !exclude.has(w)),
+    w.length >= cfg.minWordLen && w.length <= fitMax;
+  const notRecent = (w: string) => !exclude.has(w);
+
+  // Reserve a VARIED number of long (8+ letter) words so they appear
+  // occasionally rather than every day: a seeded 0..longWordMax for this
+  // puzzle. Long words are placed first — longest-first — which both
+  // guarantees they fit and seeds crossing points for the shorter words.
+  const longTarget =
+    cfg.longWordMax > 0 ? Math.floor(rand() * (cfg.longWordMax + 1)) : 0;
+
+  const longPool = shuffle(
+    LONG_WORDS.filter((w) => lengthOk(w) && w.length >= LONG_WORD_MIN && notRecent(w)),
     rand,
+  ).sort((a, b) => b.length - a.length);
+
+  // Fill pool is genuinely short (< LONG_WORD_MIN) so long words only ever
+  // enter through the reserved quota above — keeping them occasional.
+  const shortPool = ALL_WORDS.filter(
+    (w) => lengthOk(w) && w.length < LONG_WORD_MIN,
   );
-  const usable =
-    candidates.length >= cfg.wordCount * 3 ? candidates : shuffle(pool, rand);
+  const shortCandidates = shuffle(shortPool.filter(notRecent), rand);
+  // Fall back to the full pool (ignoring the recent-exclude) if we're short on
+  // fresh candidates, so generation never starves.
+  const shortUsable =
+    shortCandidates.length >= cfg.wordCount * 3
+      ? shortCandidates
+      : shuffle(shortPool, rand);
 
   const grid = new Array<string>(n * n).fill("");
   const placements: Placement[] = [];
   const words: string[] = [];
 
-  for (const word of usable) {
-    if (words.length >= cfg.wordCount) break;
-    if (words.includes(word)) continue;
+  const tryPlace = (word: string): boolean => {
+    if (words.length >= cfg.wordCount) return false;
+    if (words.includes(word)) return false;
     const placement = placeWord(grid, n, word, rand);
     if (placement) {
       placements.push(placement);
       words.push(word);
+      return true;
     }
+    return false;
+  };
+
+  // 1) Place up to `longTarget` long words first.
+  let longPlaced = 0;
+  for (const word of longPool) {
+    if (longPlaced >= longTarget || words.length >= cfg.wordCount) break;
+    if (tryPlace(word)) longPlaced++;
+  }
+
+  // 2) Fill the remaining slots with shorter words.
+  for (const word of shortUsable) {
+    if (words.length >= cfg.wordCount) break;
+    tryPlace(word);
   }
 
   // Fill empty cells with random letters.
