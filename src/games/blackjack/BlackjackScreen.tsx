@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PlayingCard from "../../components/PlayingCard";
 import {
+  DEALER_FLIP_TRANSITION,
+  DEALER_REVEAL_STEP_MS,
+} from "../../components/motion";
+import {
   type BlackjackResult,
   recordBlackjackHand,
 } from "../../lib/stats/useProfile";
@@ -52,14 +56,25 @@ export default function BlackjackScreen() {
   // free typing isn't snapped mid-entry. null = not editing (show state.bet).
   const [betDraft, setBetDraft] = useState<string | null>(null);
 
+  // Staged dealer reveal. When a round settles, we don't dump the dealer's
+  // whole hand at once — we flip the hole card, then turn over each drawn card
+  // one at a time to build suspense. `dealerReveal` is how many of the settled
+  // dealer's cards are currently shown face-up (Infinity = fully revealed /
+  // not animating). During the reveal we suppress the result banner, stat
+  // recording, and the running total until it finishes.
+  const [dealerReveal, setDealerReveal] = useState(Infinity);
+  const revealing = state.phase === "settled" && dealerReveal < state.dealer.length;
+
   // Persist the wallet whenever it changes.
   useEffect(() => {
     saveBankroll(state.bankroll);
   }, [state.bankroll]);
 
-  // Record each settled round's hands once (a split produces multiple).
+  // Record each settled round's hands once (a split produces multiple). Hold
+  // off until the dealer reveal animation has finished so the win/loss isn't
+  // "spoiled" before the cards finish turning over.
   useEffect(() => {
-    if (state.phase === "settled" && !recordedRound.current) {
+    if (state.phase === "settled" && !revealing && !recordedRound.current) {
       recordedRound.current = true;
       for (const hand of state.hands) {
         if (hand.outcome) {
@@ -69,7 +84,32 @@ export default function BlackjackScreen() {
     } else if (state.phase !== "settled") {
       recordedRound.current = false;
     }
-  }, [state.phase, state.hands, state.bankroll]);
+  }, [state.phase, state.hands, state.bankroll, revealing]);
+
+  // Drive the staged dealer reveal. On entering `settled` from active play
+  // (stand/double/split), start with only the dealer's original up-card shown,
+  // then reveal one more card every DEALER_REVEAL_STEP_MS until the whole hand
+  // is face-up. A deal-time natural (betting -> settled) is shown immediately.
+  const prevPhase = useRef(state.phase);
+  useEffect(() => {
+    const was = prevPhase.current;
+    prevPhase.current = state.phase;
+    if (state.phase !== "settled") return;
+    // Only animate when the player actually played the hand out.
+    if (was !== "player") {
+      setDealerReveal(Infinity);
+      return;
+    }
+    // Start showing just the first dealer card (the up-card), then step up.
+    setDealerReveal(1);
+    let shown = 1;
+    const timer = setInterval(() => {
+      shown += 1;
+      setDealerReveal(shown);
+      if (shown >= state.dealer.length) clearInterval(timer);
+    }, DEALER_REVEAL_STEP_MS);
+    return () => clearInterval(timer);
+  }, [state.phase, state.dealer.length]);
 
   const adjustBet = useCallback((delta: number) => {
     setBetDraft(null);
@@ -125,10 +165,22 @@ export default function BlackjackScreen() {
     setState(newGame(STARTING_BANKROLL));
   }, []);
 
-  const dealerShownValue =
-    state.phase === "player"
-      ? handValue(state.dealer.filter((c) => c.faceUp))
-      : handValue(state.dealer);
+  // The dealer cards to render, with per-card faceUp reflecting the staged
+  // reveal. During play we render the real hand (up-card + face-down hole).
+  // While settling we render the first `dealerReveal` cards face-up (so the
+  // hole card flips and each draw turns over in turn), keeping the hole card
+  // present-but-face-down until its step so it flips rather than pops in.
+  const dealerCards: typeof state.dealer = (() => {
+    if (state.phase !== "settled" || dealerReveal === Infinity) {
+      return state.dealer;
+    }
+    // Always keep the two original cards mounted; reveal draws as we go.
+    const count = Math.max(2, Math.min(dealerReveal, state.dealer.length));
+    return state.dealer
+      .slice(0, count)
+      .map((c, i) => ({ ...c, faceUp: i < dealerReveal }));
+  })();
+  const dealerShownValue = handValue(dealerCards.filter((c) => c.faceUp));
 
   const broke = state.phase === "betting" && state.bankroll < 5;
   const splittable = canSplit(state);
@@ -155,16 +207,20 @@ export default function BlackjackScreen() {
             )}
           </div>
           <div className="hand">
-            {state.dealer.length === 0 ? (
+            {dealerCards.length === 0 ? (
               <div className="empty-hand">—</div>
             ) : (
-              state.dealer.map((card, i) => (
+              dealerCards.map((card, i) => (
                 <PlayingCard
                   key={`${card.id}-${i}`}
                   card={card}
                   entrance
                   layoutId={null}
                   className="hand-card"
+                  // Slower, deliberate flip during the staged dealer reveal.
+                  flipTransition={
+                    state.phase === "settled" ? DEALER_FLIP_TRANSITION : undefined
+                  }
                 />
               ))
             )}
@@ -179,6 +235,7 @@ export default function BlackjackScreen() {
           {state.phase === "player" && multiHand && (
             <div className="turn-hint">Hand {state.activeHand + 1}</div>
           )}
+          {revealing && <div className="turn-hint">Dealer reveals…</div>}
         </div>
 
         {/* Player hands */}
@@ -217,7 +274,7 @@ export default function BlackjackScreen() {
                   <div className="hand-label">
                     <span>{multiHand ? `Hand ${hi + 1}` : "You"}</span>
                     <span className="hand-total">{handValue(hand.cards)}</span>
-                    {hand.outcome && (
+                    {hand.outcome && !revealing && (
                       <span className="hand-outcome">
                         {outcomeText(hand.outcome)}
                       </span>
@@ -312,7 +369,7 @@ export default function BlackjackScreen() {
           </div>
         )}
 
-        {state.phase === "settled" && (
+        {state.phase === "settled" && !revealing && (
           <div className="action-row">
             <button className="btn-primary wide" onClick={continueGame}>
               Next hand

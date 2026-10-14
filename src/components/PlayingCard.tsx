@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { motion } from "framer-motion";
+import { type Transition, motion } from "framer-motion";
 import { type Card, cardColor, suitSymbol } from "../lib/cards";
 import { CARD_TRANSITION, FLIP_TRANSITION } from "./motion";
 import "./PlayingCard.css";
@@ -31,6 +31,8 @@ interface Props {
   entrance?: boolean;
   /** Delay (seconds) before the entrance animation plays. For staggered deals. */
   entranceDelay?: number;
+  /** Override the 3D flip transition (e.g. a slower dealer reveal). */
+  flipTransition?: Transition;
 }
 
 function FaceContent({ card }: { card: Card }) {
@@ -63,6 +65,7 @@ export default function PlayingCard({
   layoutId,
   entrance = false,
   entranceDelay = 0,
+  flipTransition = FLIP_TRANSITION,
 }: Props) {
   const color = cardColor(card.suit);
 
@@ -116,7 +119,7 @@ export default function PlayingCard({
         className="card-flip"
         initial={false}
         animate={{ rotateY: card.faceUp ? 0 : 180 }}
-        transition={FLIP_TRANSITION}
+        transition={flipTransition}
       >
         {/* Front (face up) */}
         <div className={`card card-face front ${color} ${selected ? "selected" : ""}`}>
