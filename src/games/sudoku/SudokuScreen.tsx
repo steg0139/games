@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  recordHintUsed,
   recordSudokuComplete,
   updateSettings,
   useProfile,
@@ -96,6 +97,10 @@ export default function SudokuScreen() {
     load.status === "ready" ? `sudoku-${storageId}` : null,
     load.status === "ready" && !solved,
   );
+  // Mirror elapsed into a ref so completion recorders can read the final time
+  // without the per-second tick recreating the place/hint callbacks.
+  const elapsedRef = useRef(elapsed);
+  elapsedRef.current = elapsed;
 
   const loadedPracticeSeed = useRef<number | null>(null);
 
@@ -157,7 +162,8 @@ export default function SudokuScreen() {
       if (!isPractice) saveProgress(storageId, next);
       if (isSolved(next, solution)) {
         setSolved(true);
-        if (!isPractice) recordSudokuComplete(dayNumberForKey(todayKey()));
+        if (!isPractice)
+          recordSudokuComplete(dayNumberForKey(todayKey()), elapsedRef.current);
       }
     },
     [solved, selected, givens, solution, isPractice, storageId, entries],
@@ -184,6 +190,8 @@ export default function SudokuScreen() {
     }
     if (wrongOrEmpty.length === 0) return; // nothing to help with
 
+    if (!isPractice) recordHintUsed("sudoku");
+
     // Prefer the selected cell when it's one of the fixable ones.
     const pick =
       selected !== null && wrongOrEmpty.includes(selected)
@@ -197,7 +205,8 @@ export default function SudokuScreen() {
     if (!isPractice) saveProgress(storageId, next);
     if (isSolved(next, solution)) {
       setSolved(true);
-      if (!isPractice) recordSudokuComplete(dayNumberForKey(todayKey()));
+      if (!isPractice)
+        recordSudokuComplete(dayNumberForKey(todayKey()), elapsedRef.current);
     }
   }, [solved, givens, solution, entries, selected, isPractice, storageId]);
 

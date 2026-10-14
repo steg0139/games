@@ -41,11 +41,12 @@ export default function VideoPokerScreen() {
         paid: state.payout > 0,
         payout: state.payout,
         bankroll: state.bankroll,
+        bet: state.bet,
       });
     } else if (state.phase !== "result") {
       recordedResult.current = false;
     }
-  }, [state.phase, state.result, state.payout, state.bankroll]);
+  }, [state.phase, state.result, state.payout, state.bankroll, state.bet]);
 
   const adjustBet = useCallback((delta: number) => {
     setBetDraft(null);

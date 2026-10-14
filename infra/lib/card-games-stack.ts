@@ -78,6 +78,19 @@ export class CardGamesStack extends cdk.Stack {
       integration,
     });
 
+    // Public profile mirror: owner publishes under their friend code (PUT),
+    // anyone reads it by code (GET). Keyed by code in-table, so no GSI needed.
+    api.addRoutes({
+      path: "/public",
+      methods: [HttpMethod.PUT],
+      integration,
+    });
+    api.addRoutes({
+      path: "/public/{code}",
+      methods: [HttpMethod.GET],
+      integration,
+    });
+
     // --- Daily crossword: generator Lambda + nightly cron + read routes -----
     const crosswordLogGroup = new logs.LogGroup(this, "CrosswordFnLogs", {
       retention: logs.RetentionDays.ONE_MONTH,

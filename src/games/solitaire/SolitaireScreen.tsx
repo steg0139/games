@@ -3,7 +3,11 @@ import { Link } from "react-router-dom";
 import { LayoutGroup } from "framer-motion";
 import PlayingCard from "../../components/PlayingCard";
 import { type Card, cardColor, rankValue, suitSymbol } from "../../lib/cards";
-import { recordSolitaireResult, useProfile } from "../../lib/stats/useProfile";
+import {
+  recordHintUsed,
+  recordSolitaireResult,
+  useProfile,
+} from "../../lib/stats/useProfile";
 import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import {
   type PileId,
@@ -299,6 +303,9 @@ export default function SolitaireScreen() {
     setHintFromId(null);
     setHintToId(null);
     setHintStock(false);
+
+    // Count a hint only when we actually surface a suggestion.
+    if (hint.kind !== "none") recordHintUsed("solitaire");
 
     if (hint.kind === "move") {
       // The card to pick up (source).

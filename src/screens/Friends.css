@@ -1,0 +1,222 @@
+/* Friends screen. Reuses .stats-section / .sync-note / .link-btn from Stats.css
+   (imported via the Stats route) and the global .app-bar / .btn-primary /
+   .icon-btn. Everything below is Friends-specific. */
+
+.friends {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.friends-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 18px calc(var(--safe-bottom) + 28px);
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Section cards: mirror Stats so the look matches without importing Stats.css. */
+.friends .stats-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.friends .stats-section h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.friends .sync-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+}
+
+.field-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.field-row + .field-row {
+  margin-top: 10px;
+}
+
+.text-input {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 15px;
+  padding: 10px 12px;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent-strong);
+}
+
+.btn-primary.sm {
+  padding: 10px 16px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.field-error {
+  color: #fca5a5;
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+/* The user's own friend code — big and monospace so it's easy to read aloud. */
+.friend-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent-strong);
+  margin: 0 0 12px;
+  user-select: all;
+}
+
+/* Friend list */
+.friend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.friend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.friend-item:first-child {
+  border-top: none;
+}
+
+.friend-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.friend-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.friend-code-sm {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.friend-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.friend-status .link-btn {
+  color: #f87171;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Comparison table */
+.compare-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 8px 10px;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-table thead th {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.compare-table th.me-col {
+  color: var(--accent-strong);
+}
+
+.compare-table .row-label {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.compare-table tbody tr + tr td {
+  border-top: 1px solid var(--border);
+}
+
+.compare-table td.leader {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+/* Toast (self-contained; Friends doesn't import Home.css). */
+.friends .home-toast,
+.home-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 24px);
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 50;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}

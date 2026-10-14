@@ -4,13 +4,18 @@
 import {
   deleteRemoteProfile,
   fetchRemoteProfile,
+  pushPublicProfile,
   pushRemoteProfile,
 } from "./sync";
 import {
+  type Friend,
   type Profile,
   PROFILE_VERSION,
   defaultProfile,
+  generateFriendCode,
   mergeProfiles,
+  normalizeFriendCode,
+  toPublicProfile,
 } from "./types";
 
 const STORAGE_KEY = "cards.profile";
@@ -24,17 +29,19 @@ function readLocal(): Profile {
     if (!raw) return defaultProfile();
     const parsed = JSON.parse(raw) as Partial<Profile>;
     // Merge onto defaults so schema additions don't break older saves.
+    const d = defaultProfile();
     return {
-      ...defaultProfile(),
+      ...d,
       ...parsed,
       version: PROFILE_VERSION,
-      settings: { ...defaultProfile().settings, ...parsed.settings },
-      solitaire: { ...defaultProfile().solitaire, ...parsed.solitaire },
-      blackjack: { ...defaultProfile().blackjack, ...parsed.blackjack },
-      videopoker: { ...defaultProfile().videopoker, ...parsed.videopoker },
-      crossword: { ...defaultProfile().crossword, ...parsed.crossword },
-      sudoku: { ...defaultProfile().sudoku, ...parsed.sudoku },
-      wordsearch: { ...defaultProfile().wordsearch, ...parsed.wordsearch },
+      friends: Array.isArray(parsed.friends) ? parsed.friends : d.friends,
+      settings: { ...d.settings, ...parsed.settings },
+      solitaire: { ...d.solitaire, ...parsed.solitaire },
+      blackjack: { ...d.blackjack, ...parsed.blackjack },
+      videopoker: { ...d.videopoker, ...parsed.videopoker },
+      crossword: { ...d.crossword, ...parsed.crossword },
+      sudoku: { ...d.sudoku, ...parsed.sudoku },
+      wordsearch: { ...d.wordsearch, ...parsed.wordsearch },
     };
   } catch {
     return defaultProfile();
@@ -98,6 +105,69 @@ class ProfileStore {
     this.schedulePush();
   }
 
+  /** Ensure this profile has a public friend code, assigning one on first use.
+   *  Returns the code. Safe to call repeatedly (idempotent). */
+  ensureFriendCode(): string {
+    if (this.profile.friendCode) return this.profile.friendCode;
+    const code = generateFriendCode();
+    this.update((p) => ({ ...p, friendCode: code }));
+    return code;
+  }
+
+  /** Set the public display name (trimmed, capped). Assigns a friend code too
+   *  so the profile is immediately shareable. */
+  setDisplayName(name: string): void {
+    const clean = name.trim().slice(0, 24);
+    this.update((p) => ({
+      ...p,
+      displayName: clean,
+      friendCode: p.friendCode || generateFriendCode(),
+    }));
+  }
+
+  /** Add a friend by their public code. Normalizes + dedupes; refuses adding
+   *  your own code. Returns the normalized code added, or null if invalid. */
+  addFriend(code: string, displayName = ""): string | null {
+    const normalized = normalizeFriendCode(code);
+    if (!normalized) return null;
+    if (normalized === this.profile.friendCode) return null; // can't friend yourself
+    if (this.profile.friends.some((f) => f.code === normalized)) {
+      // Already added — just refresh the cached name if we got a better one.
+      if (displayName) this.updateFriendName(normalized, displayName);
+      return normalized;
+    }
+    const friend: Friend = {
+      code: normalized,
+      displayName: displayName.trim().slice(0, 24),
+      addedAt: Date.now(),
+    };
+    this.update((p) => ({ ...p, friends: [...p.friends, friend] }));
+    return normalized;
+  }
+
+  /** Update the cached display name for an already-added friend (no-op if
+   *  not present or unchanged). */
+  updateFriendName(code: string, displayName: string): void {
+    const clean = displayName.trim().slice(0, 24);
+    const existing = this.profile.friends.find((f) => f.code === code);
+    if (!existing || existing.displayName === clean) return;
+    this.update((p) => ({
+      ...p,
+      friends: p.friends.map((f) =>
+        f.code === code ? { ...f, displayName: clean } : f,
+      ),
+    }));
+  }
+
+  /** Remove a friend by code. */
+  removeFriend(code: string): void {
+    if (!this.profile.friends.some((f) => f.code === code)) return;
+    this.update((p) => ({
+      ...p,
+      friends: p.friends.filter((f) => f.code !== code),
+    }));
+  }
+
   /**
    * Reset all stats and settings to defaults, locally and in the cloud.
    * Cancels any pending push so the reset isn't overwritten, and deletes the
@@ -119,7 +189,15 @@ class ProfileStore {
     if (this.pushTimer) clearTimeout(this.pushTimer);
     this.pushTimer = setTimeout(() => {
       this.pushTimer = null;
-      void pushRemoteProfile(this.profile);
+      const snapshot = this.profile;
+      // Private full-blob backup (device-keyed, last-writer-wins).
+      void pushRemoteProfile(snapshot);
+      // Public mirror so friends can read sanitized stats. Only when the user
+      // has opted into being shareable (has a friend code). Independent of the
+      // private push so one failing doesn't block the other.
+      if (snapshot.friendCode) {
+        void pushPublicProfile(toPublicProfile(snapshot));
+      }
     }, PUSH_DEBOUNCE_MS);
   }
 

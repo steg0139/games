@@ -142,6 +142,10 @@ export default function Stats() {
               <div className="value">{s.gamesPlayed}</div>
               <div className="label">Games played</div>
             </div>
+            <div className="stat">
+              <div className="value">{s.hintsUsed}</div>
+              <div className="label">Hints used</div>
+            </div>
           </div>
           <GameResetControl
             game="solitaire"
@@ -170,6 +174,14 @@ export default function Stats() {
             <div className="stat">
               <div className="value">{b.blackjacks}</div>
               <div className="label">Blackjacks</div>
+            </div>
+            <div className="stat">
+              <div className="value">${b.biggestWin}</div>
+              <div className="label">Biggest win</div>
+            </div>
+            <div className="stat">
+              <div className="value">${b.biggestBet}</div>
+              <div className="label">Biggest bet</div>
             </div>
             <div className="stat">
               <div className="value">{b.pushes}</div>
@@ -205,6 +217,10 @@ export default function Stats() {
               <div className="label">Best bankroll</div>
             </div>
             <div className="stat">
+              <div className="value">${v.biggestBet}</div>
+              <div className="label">Biggest bet</div>
+            </div>
+            <div className="stat">
               <div className="value">{v.handsPlayed}</div>
               <div className="label">Hands played</div>
             </div>
@@ -233,6 +249,10 @@ export default function Stats() {
               <div className="value">{x.bestStreak}</div>
               <div className="label">Best streak</div>
             </div>
+            <div className="stat">
+              <div className="value">{fmtTime(x.bestTimeSeconds)}</div>
+              <div className="label">Best time</div>
+            </div>
           </div>
           <GameResetControl
             game="crossword"
@@ -258,6 +278,14 @@ export default function Stats() {
               <div className="value">{su.bestStreak}</div>
               <div className="label">Best streak</div>
             </div>
+            <div className="stat">
+              <div className="value">{fmtTime(su.bestTimeSeconds)}</div>
+              <div className="label">Best time</div>
+            </div>
+            <div className="stat">
+              <div className="value">{su.hintsUsed}</div>
+              <div className="label">Hints used</div>
+            </div>
           </div>
           <GameResetControl
             game="sudoku"
@@ -282,6 +310,10 @@ export default function Stats() {
             <div className="stat">
               <div className="value">{ws.bestStreak}</div>
               <div className="label">Best streak</div>
+            </div>
+            <div className="stat">
+              <div className="value">{fmtTime(ws.bestTimeSeconds)}</div>
+              <div className="label">Best time</div>
             </div>
           </div>
           <GameResetControl

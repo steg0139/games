@@ -139,6 +139,10 @@ export default function CrosswordScreen() {
     load.status === "ready" ? `crossword-${id}` : null,
     load.status === "ready" && !solved,
   );
+  // Mirror elapsed into a ref so onComplete can record the final time without
+  // the per-second tick recreating the callback.
+  const elapsedRef = useRef(elapsed);
+  elapsedRef.current = elapsed;
 
   const cwRef = useRef<CrosswordProviderImperative>(null);
   const revealed = useRef<Set<string>>(new Set());
@@ -168,6 +172,7 @@ export default function CrosswordScreen() {
         if (!isPractice) {
           recordCrosswordComplete(
             Math.floor(Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000),
+            elapsedRef.current,
           );
         }
       }

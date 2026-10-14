@@ -18,6 +18,8 @@ const SudokuScreen = lazy(() => import("./games/sudoku/SudokuScreen"));
 const WordSearchScreen = lazy(
   () => import("./games/wordsearch/WordSearchScreen"),
 );
+// Friends/profile comparison is secondary; lazy-load it too.
+const Friends = lazy(() => import("./screens/Friends"));
 
 const router = createBrowserRouter([
   {
@@ -53,6 +55,14 @@ const router = createBrowserRouter([
         ),
       },
       { path: "stats", element: <Stats /> },
+      {
+        path: "friends",
+        element: (
+          <Suspense fallback={<div className="route-loading">Loading…</div>}>
+            <Friends />
+          </Suspense>
+        ),
+      },
     ],
   },
 ]);

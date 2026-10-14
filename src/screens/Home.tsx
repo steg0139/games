@@ -98,6 +98,9 @@ export default function Home() {
         <Link to="/stats" className="home-stats-link">
           Stats &amp; Settings
         </Link>
+        <Link to="/friends" className="home-stats-link">
+          Friends
+        </Link>
         <span>
           {isStandalone()
             ? VERSION_LABEL

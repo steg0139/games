@@ -3,7 +3,12 @@
 // keeps working from localStorage.
 import { API_BASE_URL, CLOUD_SYNC_ENABLED } from "../config";
 import { getDeviceId } from "../device";
-import { type Profile, PROFILE_VERSION, defaultProfile } from "./types";
+import {
+  type Profile,
+  PROFILE_VERSION,
+  type PublicProfile,
+  defaultProfile,
+} from "./types";
 
 const TIMEOUT_MS = 8000;
 
@@ -80,5 +85,58 @@ export async function pushRemoteProfile(profile: Profile): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Publish this device's public profile (sanitized stats + display name) under
+ * its friend code, so others can fetch it. Authenticated by the device id so
+ * only the owner can write their own public mirror. Returns true on success.
+ */
+export async function pushPublicProfile(pub: PublicProfile): Promise<boolean> {
+  if (!CLOUD_SYNC_ENABLED) return false;
+  if (!pub.code) return false;
+  const deviceId = getDeviceId();
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/public`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "x-device-id": deviceId,
+      },
+      body: JSON.stringify(pub),
+      signal: withTimeout(),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetch a friend's public profile by their friend code. No device id required —
+ * this is the read side of "add a friend". Returns null if not found or
+ * unavailable.
+ */
+export async function fetchPublicProfile(
+  code: string,
+): Promise<PublicProfile | null> {
+  if (!CLOUD_SYNC_ENABLED) return null;
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/public/${encodeURIComponent(trimmed)}`,
+      { method: "GET", signal: withTimeout() },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    const data = (await res.json()) as PublicProfile | null;
+    if (!data || typeof data !== "object" || !data.code) return null;
+    return data;
+  } catch {
+    return null;
   }
 }

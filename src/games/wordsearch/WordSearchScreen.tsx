@@ -122,6 +122,9 @@ export default function WordSearchScreen() {
     load.status === "ready" ? `wordsearch-${storageId}` : null,
     load.status === "ready" && !solved,
   );
+  // Mirror elapsed into a ref so completion recording reads the final time.
+  const elapsedRef = useRef(elapsed);
+  elapsedRef.current = elapsed;
 
   // Found words as line segments (in viewBox units: 1 per cell, centered on
   // cells) for the rounded capsule overlay.
@@ -207,7 +210,10 @@ export default function WordSearchScreen() {
       if (!isPractice) {
         saveFound(storageId, nextFound);
         if (nextFound.length === puzzle.words.length) {
-          recordWordSearchComplete(dayNumberForKey(todayKey()));
+          recordWordSearchComplete(
+            dayNumberForKey(todayKey()),
+            elapsedRef.current,
+          );
         }
       }
     }
