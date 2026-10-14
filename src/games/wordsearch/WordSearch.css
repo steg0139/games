@@ -21,7 +21,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .ws-date {
@@ -36,14 +36,14 @@
 }
 
 .ws-diff {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .ws-practice-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .ws-practice-row .icon-btn {
@@ -66,7 +66,13 @@
   position: relative; /* anchors the found-word line overlay */
   display: grid;
   width: 100%;
-  max-width: min(100%, 30rem);
+  /* Cap the (square) grid by both width and available height so the whole
+     puzzle — grid plus the word list below it — fits on a short screen (e.g.
+     iPhone) instead of the board eating all the height and pushing the words
+     off-screen. Width wins on normal-height phones; only short screens shrink
+     the board a little. The reserve accounts for the app bar + heading/picker/
+     practice chrome above and a compact word list below. */
+  max-width: min(100%, 30rem, calc(100dvh - 24rem));
   margin: 0 auto;
   /* No gap: cells tile edge-to-edge so the SVG overlay (size×size viewBox)
      lines up exactly with cell centers. Borders are drawn per-cell. */
@@ -123,19 +129,22 @@
 
 .ws-words {
   list-style: none;
-  margin: 16px 0 0;
+  margin: 12px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 4px 16px;
+  /* Auto-flowing columns: as the word count grows the list spreads into more
+     columns (min 2) instead of growing taller, so a 14-word hard puzzle still
+     fits under the grid on a short screen. */
+  grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr));
+  gap: 2px 12px;
 }
 
 .ws-word {
-  font-size: 14px;
+  font-size: 13px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text);
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .ws-word.found {
