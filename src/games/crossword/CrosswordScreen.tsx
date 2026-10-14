@@ -201,21 +201,50 @@ export default function CrosswordScreen() {
     setCheckMsg(null); // typing invalidates a prior check result
   }, []);
 
+  // The authoritative set of current guesses, keyed "row,col". The in-session
+  // Map (`guesses.current`) only captures cells typed THIS session, so it
+  // misses letters restored from storage on resume — which made Check lie
+  // ("everything correct" while unseen cells were wrong). react-crossword
+  // persists the real grid to localStorage under the storageKey as
+  // { guesses: { "r_c": "X" } }; read that and overlay the in-session Map
+  // (freshest for the current edits). For practice there's no storage, so the
+  // Map alone is used.
+  const currentGuesses = useCallback((): Map<string, string> => {
+    const merged = new Map<string, string>();
+    try {
+      const raw = localStorage.getItem(`crossword-${id}`);
+      if (raw) {
+        const saved = JSON.parse(raw) as { guesses?: Record<string, string> };
+        for (const [k, v] of Object.entries(saved.guesses ?? {})) {
+          if (!v) continue;
+          const [r, c] = k.split("_");
+          merged.set(`${r},${c}`, v);
+        }
+      }
+    } catch {
+      /* ignore — fall back to the in-session map */
+    }
+    // In-session edits are the freshest; overlay them.
+    for (const [k, v] of guesses.current) merged.set(k, v);
+    return merged;
+  }, [id]);
+
   const check = useCallback(() => {
     if (!data) return;
     const cells = gridCells(data);
+    const g = currentGuesses();
     let filled = 0;
     let wrong = 0;
     for (const c of cells) {
-      const g = guesses.current.get(`${c.row},${c.col}`);
-      if (!g) continue;
+      const guess = g.get(`${c.row},${c.col}`);
+      if (!guess) continue;
       filled++;
-      if (g.toUpperCase() !== c.letter.toUpperCase()) wrong++;
+      if (guess.toUpperCase() !== c.letter.toUpperCase()) wrong++;
     }
     if (filled === 0) setCheckMsg("Fill in some letters first.");
     else if (wrong === 0) setCheckMsg("Everything filled in so far is correct.");
     else setCheckMsg(`${wrong} of ${filled} filled letters ${wrong === 1 ? "is" : "are"} wrong.`);
-  }, [data]);
+  }, [data, currentGuesses]);
 
   const revealLetter = useCallback(() => {
     if (!data) return;

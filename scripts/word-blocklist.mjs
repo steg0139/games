@@ -44,7 +44,7 @@ export const BLOCKLIST = [
   // --- Weapons (lethal) ---
   "gun", "rifle", "pistol", "shotgun", "firearm", "handgun", "ammo",
   "ammunition", "grenade", "bomb", "explosive", "missile", "warhead",
-  "weapon", "dagger", "bayonet",
+  "weapon", "weaponry", "armament", "dagger", "bayonet",
 
   // --- Drugs / alcohol / addiction ---
   "drug", "cocaine", "heroin", "meth", "methamphetamine", "marijuana",

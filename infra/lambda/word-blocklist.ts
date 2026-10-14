@@ -32,7 +32,7 @@ const BLOCKLIST: string[] = [
   // Weapons
   "gun", "rifle", "pistol", "shotgun", "firearm", "handgun", "ammo",
   "ammunition", "grenade", "bomb", "explosive", "missile", "warhead",
-  "weapon", "dagger", "bayonet",
+  "weapon", "weaponry", "armament", "dagger", "bayonet",
   // Drugs / alcohol
   "drug", "cocaine", "heroin", "meth", "methamphetamine", "marijuana",
   "cannabis", "weed", "crack", "opioid", "opium", "narcotic", "ecstasy",

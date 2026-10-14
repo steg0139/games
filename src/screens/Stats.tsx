@@ -465,6 +465,29 @@ export default function Stats() {
           )}
         </section>
 
+        <section className="stats-section">
+          <h2>Credits</h2>
+          <p className="sync-note">
+            Crossword and word-search answers are drawn from{" "}
+            <a
+              href="https://www.spreadthewordlist.com"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Spread the Word(list)
+            </a>
+            , licensed under{" "}
+            <a
+              href="https://creativecommons.org/licenses/by-nc-sa/4.0/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              CC BY-NC-SA 4.0
+            </a>
+            . Clues are generated from WordNet.
+          </p>
+        </section>
+
         <p className="version-line">{VERSION_LABEL}</p>
       </div>
     </div>
