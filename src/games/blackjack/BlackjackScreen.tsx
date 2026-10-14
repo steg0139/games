@@ -30,6 +30,21 @@ import { clearBankroll, loadBankroll, saveBankroll } from "./bankroll";
 import "../../styles/bet-controls.css";
 import "./Blackjack.css";
 
+/** Net chips won on a settled hand (0 or negative when not a win). Mirrors the
+ *  payout math in logic.ts: a natural pays 3:2, other wins pay even money, and
+ *  `hand.bet` already reflects a doubled wager. */
+function netWinForHand(outcome: Outcome, bet: number): number {
+  switch (outcome) {
+    case "player_blackjack":
+      return Math.floor(bet * 1.5);
+    case "player_win":
+    case "dealer_bust":
+      return bet;
+    default:
+      return 0;
+  }
+}
+
 function outcomeToResult(outcome: Outcome): BlackjackResult {
   switch (outcome) {
     case "player_blackjack":
@@ -56,6 +71,12 @@ export default function BlackjackScreen() {
   // free typing isn't snapped mid-entry. null = not editing (show state.bet).
   const [betDraft, setBetDraft] = useState<string | null>(null);
 
+  // Number of dealer cards currently mounted (showing). Leads `dealerReveal`
+  // by one beat during the staged reveal: a new card appears face-down first,
+  // then flips on the next step — so a drawn card never pops in at the same
+  // instant the previous card is still flipping.
+  const [dealerMounted, setDealerMounted] = useState(Infinity);
+
   // Staged dealer reveal. When a round settles, we don't dump the dealer's
   // whole hand at once — we flip the hole card, then turn over each drawn card
   // one at a time to build suspense. `dealerReveal` is how many of the settled
@@ -78,7 +99,10 @@ export default function BlackjackScreen() {
       recordedRound.current = true;
       for (const hand of state.hands) {
         if (hand.outcome) {
-          recordBlackjackHand(outcomeToResult(hand.outcome), state.bankroll);
+          recordBlackjackHand(outcomeToResult(hand.outcome), state.bankroll, {
+            bet: hand.bet,
+            netWin: netWinForHand(hand.outcome, hand.bet),
+          });
         }
       }
     } else if (state.phase !== "settled") {
@@ -95,18 +119,38 @@ export default function BlackjackScreen() {
     const was = prevPhase.current;
     prevPhase.current = state.phase;
     if (state.phase !== "settled") return;
+    const total = state.dealer.length;
     // Only animate when the player actually played the hand out.
     if (was !== "player") {
       setDealerReveal(Infinity);
+      setDealerMounted(Infinity);
       return;
     }
-    // Start showing just the first dealer card (the up-card), then step up.
+    // Opening state: both original cards are on the table, but only the dealer
+    // up-card is face-up — the hole card is still a back.
     setDealerReveal(1);
-    let shown = 1;
+    setDealerMounted(2);
+
+    // Build the reveal as an ordered list of beats. The hole card is already
+    // mounted, so it only needs a flip. Every card drawn beyond the first two
+    // gets a mount beat (slide in face-down) and then a flip beat, so the back
+    // is on the table a step before it turns over.
+    type Beat = { reveal: number; mounted: number };
+    const beats: Beat[] = [{ reveal: 2, mounted: 2 }]; // flip the hole card
+    for (let i = 2; i < total; i++) {
+      beats.push({ reveal: i, mounted: i + 1 }); // mount card i (face-down)
+      beats.push({ reveal: i + 1, mounted: i + 1 }); // flip card i face-up
+    }
+
+    let step = 0;
     const timer = setInterval(() => {
-      shown += 1;
-      setDealerReveal(shown);
-      if (shown >= state.dealer.length) clearInterval(timer);
+      const beat = beats[step];
+      if (beat) {
+        setDealerReveal(beat.reveal);
+        setDealerMounted(beat.mounted);
+      }
+      step += 1;
+      if (step >= beats.length) clearInterval(timer);
     }, DEALER_REVEAL_STEP_MS);
     return () => clearInterval(timer);
   }, [state.phase, state.dealer.length]);
@@ -167,17 +211,15 @@ export default function BlackjackScreen() {
 
   // The dealer cards to render, with per-card faceUp reflecting the staged
   // reveal. During play we render the real hand (up-card + face-down hole).
-  // While settling, `dealerReveal` is the number of cards turned face-up so
-  // far. We render ONE extra card beyond that (face-down) so the next card —
-  // the hole card or a hit — is already mounted showing its back and then
-  // *flips* on its step, rather than popping in already face-up.
+  // While settling, `dealerMounted` is how many cards are on the table and
+  // `dealerReveal` is how many of those are face-up. `dealerMounted` leads the
+  // flip by a beat, so a drawn card slides in as a back and *then* flips —
+  // never appearing at the same instant another card is mid-flip.
   const dealerCards: typeof state.dealer = (() => {
     if (state.phase !== "settled" || dealerReveal === Infinity) {
       return state.dealer;
     }
-    // Mount the revealed cards plus the next one (still face-down). Always keep
-    // at least the two original cards mounted.
-    const count = Math.max(2, Math.min(dealerReveal + 1, state.dealer.length));
+    const count = Math.max(2, Math.min(dealerMounted, state.dealer.length));
     return state.dealer
       .slice(0, count)
       .map((c, i) => ({ ...c, faceUp: i < dealerReveal }));
