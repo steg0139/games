@@ -191,14 +191,10 @@ export const COMPARE_GAMES: GameDef[] = [
   {
     id: "sudoku",
     label: "Sudoku",
+    // No "Best time" here: sudoku best times merge easy + regular, so they
+    // aren't comparable across difficulties. Per-difficulty time racing lives
+    // in the daily competition instead.
     stats: [
-      {
-        id: "besttime",
-        label: "Best time",
-        format: (p) => fmtTime(p.sudoku.bestTimeSeconds),
-        rank: (p) => p.sudoku.bestTimeSeconds,
-        better: "low",
-      },
       {
         id: "hints",
         label: "Fewest hints",
@@ -225,14 +221,10 @@ export const COMPARE_GAMES: GameDef[] = [
   {
     id: "wordsearch",
     label: "Word Search",
+    // No "Best time" here: word search best times merge easy/medium/hard, so
+    // they aren't comparable. Per-difficulty time racing lives in the daily
+    // competition instead.
     stats: [
-      {
-        id: "besttime",
-        label: "Best time",
-        format: (p) => fmtTime(p.wordsearch.bestTimeSeconds),
-        rank: (p) => p.wordsearch.bestTimeSeconds,
-        better: "low",
-      },
       {
         id: "streak",
         label: "Best streak",

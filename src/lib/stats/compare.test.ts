@@ -35,6 +35,21 @@ describe("COMPARE_GAMES catalog", () => {
       expect(new Set(ids).size).toBe(ids.length);
     }
   });
+
+  it("omits cross-difficulty best time for sudoku and word search", () => {
+    // Those times merge difficulties, so they aren't comparable here — time
+    // racing lives in the per-difficulty daily competition instead.
+    for (const game of ["sudoku", "wordsearch"]) {
+      const g = COMPARE_GAMES.find((x) => x.id === game)!;
+      expect(g.stats.some((s) => s.id === "besttime")).toBe(false);
+      expect(g.stats.some((s) => s.id === "streak")).toBe(true);
+    }
+    // Single-board games keep best time (it's comparable there).
+    for (const game of ["solitaire", "crossword"]) {
+      const g = COMPARE_GAMES.find((x) => x.id === game)!;
+      expect(g.stats.some((s) => s.id === "besttime")).toBe(true);
+    }
+  });
 });
 
 describe("rankByStat", () => {
@@ -53,10 +68,10 @@ describe("rankByStat", () => {
   });
 
   it('ranks a "lower is better" time stat ascending', () => {
-    const stat = statById("sudoku", "besttime");
+    const stat = statById("crossword", "besttime");
     const players = [
-      makeProfile("slow", (p) => (p.sudoku.bestTimeSeconds = 300)),
-      makeProfile("fast", (p) => (p.sudoku.bestTimeSeconds = 120)),
+      makeProfile("slow", (p) => (p.crossword.bestTimeSeconds = 300)),
+      makeProfile("fast", (p) => (p.crossword.bestTimeSeconds = 120)),
     ];
     const ranked = rankByStat(stat, players);
     expect(ranked[0].profile.code).toBe("fast");
