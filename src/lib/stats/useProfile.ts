@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { profileStore } from "./store";
+import { type DailyBoardKey, postDailyResult } from "./daily-compete";
 import {
   type DailyStats,
   type Profile,
@@ -57,6 +58,25 @@ export function updateFriendName(code: string, displayName: string): void {
 /** Remove a friend by code. */
 export function removeFriend(code: string): void {
   profileStore.removeFriend(code);
+}
+
+/**
+ * Publish this device's result for a daily board to the competition. Ensures a
+ * friend code exists first (so results post even if the user hasn't opened the
+ * Friends screen), stamps the current display name, and fires fail-soft.
+ */
+export function postMyDailyResult(
+  key: DailyBoardKey,
+  result: { timeSeconds: number; hints: number },
+): void {
+  const code = profileStore.ensureFriendCode();
+  const p = profileStore.getProfile();
+  void postDailyResult(key, {
+    code,
+    displayName: p.displayName,
+    timeSeconds: result.timeSeconds,
+    hints: result.hints,
+  });
 }
 
 /** Reset all stats and settings to defaults (local + cloud). */

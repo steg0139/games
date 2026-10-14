@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  postMyDailyResult,
   recordHintUsed,
   recordSudokuComplete,
   updateSettings,
   useProfile,
 } from "../../lib/stats/useProfile";
+import DailyLeaderboard from "../../components/DailyLeaderboard";
 import { dayNumberForKey, todayKey } from "../../lib/daily";
 import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import type { SudokuDifficulty } from "../../lib/stats/types";
@@ -49,6 +51,29 @@ function loadProgress(storageId: string, givens: number[]): number[] | null {
 function saveProgress(storageId: string, entries: number[]): void {
   try {
     localStorage.setItem(progressKey(storageId), JSON.stringify(entries));
+  } catch {
+    /* non-fatal */
+  }
+}
+
+// Per-puzzle hint count (for the daily competition), persisted so it survives
+// a reload of a solved board.
+function hintsKey(storageId: string): string {
+  return `cards.sudoku.hints.${storageId}`;
+}
+
+function loadHints(storageId: string): number {
+  try {
+    const n = parseInt(localStorage.getItem(hintsKey(storageId)) ?? "0", 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveHints(storageId: string, hints: number): void {
+  try {
+    localStorage.setItem(hintsKey(storageId), String(hints));
   } catch {
     /* non-fatal */
   }
@@ -102,6 +127,9 @@ export default function SudokuScreen() {
   const elapsedRef = useRef(elapsed);
   elapsedRef.current = elapsed;
 
+  // Hints used on THIS daily puzzle (for the competition), restored per board.
+  const hintsRef = useRef(0);
+
   const loadedPracticeSeed = useRef<number | null>(null);
 
   // Fetch the puzzle (daily per difficulty, or practice). Refetch the daily on
@@ -113,6 +141,7 @@ export default function SudokuScreen() {
       if (cancelled) return;
       const restored =
         (!isPractice && loadProgress(sid, puzzle.givens)) || puzzle.givens.slice();
+      hintsRef.current = isPractice ? 0 : loadHints(sid);
       setLoad({ status: "ready", puzzle, storageId: sid });
       setEntries(restored);
       setSelected(null);
@@ -162,11 +191,17 @@ export default function SudokuScreen() {
       if (!isPractice) saveProgress(storageId, next);
       if (isSolved(next, solution)) {
         setSolved(true);
-        if (!isPractice)
-          recordSudokuComplete(dayNumberForKey(todayKey()), elapsedRef.current);
+        if (!isPractice) {
+          const day = dayNumberForKey(todayKey());
+          recordSudokuComplete(day, elapsedRef.current);
+          postMyDailyResult(
+            { game: "sudoku", day, variant: difficulty },
+            { timeSeconds: elapsedRef.current, hints: hintsRef.current },
+          );
+        }
       }
     },
-    [solved, selected, givens, solution, isPractice, storageId, entries],
+    [solved, selected, givens, solution, isPractice, storageId, entries, difficulty],
   );
 
   const eraseCell = useCallback(() => {
@@ -190,7 +225,11 @@ export default function SudokuScreen() {
     }
     if (wrongOrEmpty.length === 0) return; // nothing to help with
 
-    if (!isPractice) recordHintUsed("sudoku");
+    if (!isPractice) {
+      recordHintUsed("sudoku");
+      hintsRef.current += 1;
+      saveHints(storageId, hintsRef.current);
+    }
 
     // Prefer the selected cell when it's one of the fixable ones.
     const pick =
@@ -205,10 +244,16 @@ export default function SudokuScreen() {
     if (!isPractice) saveProgress(storageId, next);
     if (isSolved(next, solution)) {
       setSolved(true);
-      if (!isPractice)
-        recordSudokuComplete(dayNumberForKey(todayKey()), elapsedRef.current);
+      if (!isPractice) {
+        const day = dayNumberForKey(todayKey());
+        recordSudokuComplete(day, elapsedRef.current);
+        postMyDailyResult(
+          { game: "sudoku", day, variant: difficulty },
+          { timeSeconds: elapsedRef.current, hints: hintsRef.current },
+        );
+      }
     }
-  }, [solved, givens, solution, entries, selected, isPractice, storageId]);
+  }, [solved, givens, solution, entries, selected, isPractice, storageId, difficulty]);
 
   const startPractice = useCallback(() => {
     setSolved(false);
@@ -349,6 +394,17 @@ export default function SudokuScreen() {
               ? "Solved! Try another practice puzzle."
               : "Solved! Come back tomorrow for a new puzzle."}
           </div>
+        )}
+
+        {solved && !isPractice && (
+          <DailyLeaderboard
+            board={{
+              game: "sudoku",
+              day: dayNumberForKey(todayKey()),
+              variant: difficulty,
+            }}
+            showHints
+          />
         )}
 
         <div

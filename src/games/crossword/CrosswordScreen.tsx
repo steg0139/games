@@ -6,7 +6,11 @@ import {
   DirectionClues,
   type CrosswordProviderImperative,
 } from "@jaredreisinger/react-crossword";
-import { recordCrosswordComplete } from "../../lib/stats/useProfile";
+import {
+  postMyDailyResult,
+  recordCrosswordComplete,
+} from "../../lib/stats/useProfile";
+import DailyLeaderboard from "../../components/DailyLeaderboard";
 import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import CrosswordKeyboard, {
   type ActiveClue,
@@ -170,9 +174,13 @@ export default function CrosswordScreen() {
         // Practice puzzles don't count toward stats or streaks. Use the UTC
         // day number so streaks line up with the server's canonical daily.
         if (!isPractice) {
-          recordCrosswordComplete(
-            Math.floor(Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000),
-            elapsedRef.current,
+          const day = Math.floor(
+            Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000,
+          );
+          recordCrosswordComplete(day, elapsedRef.current);
+          postMyDailyResult(
+            { game: "crossword", day, variant: "-" },
+            { timeSeconds: elapsedRef.current, hints: 0 },
           );
         }
       }
@@ -362,6 +370,18 @@ export default function CrosswordScreen() {
                 ? "Solved! Try another practice puzzle."
                 : "Solved! Come back tomorrow for a new puzzle."}
             </div>
+          )}
+
+          {solved && !isPractice && (
+            <DailyLeaderboard
+              board={{
+                game: "crossword",
+                day: Math.floor(
+                  Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000,
+                ),
+                variant: "-",
+              }}
+            />
           )}
           {checkMsg && !solved && (
             <div className="cw-check" role="status">

@@ -1,0 +1,99 @@
+/* Daily competition standings, shown on a game screen once the daily is solved.
+   Styled to match the app's dark surfaces. */
+
+.daily-board {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 16px auto 0;
+  max-width: min(100%, 30rem);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.daily-board h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.daily-board-empty,
+.daily-board-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.daily-board-note {
+  margin-top: 10px;
+}
+
+.daily-board-empty a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.daily-board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.daily-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.daily-row + .daily-row {
+  margin-top: 2px;
+}
+
+/* Alternating subtle banding for readability. */
+.daily-row:nth-child(odd) {
+  background: var(--bg-elevated);
+}
+
+/* Highlight the current player's row. */
+.daily-row.me {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-elevated));
+  outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.daily-rank {
+  flex: 0 0 1.5rem;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.daily-hints {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-time {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  postMyDailyResult,
   recordWordSearchComplete,
   updateSettings,
   useProfile,
 } from "../../lib/stats/useProfile";
+import DailyLeaderboard from "../../components/DailyLeaderboard";
 import { dayNumberForKey, todayKey } from "../../lib/daily";
 import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import type { WordSearchDifficulty } from "../../lib/stats/types";
@@ -210,16 +212,18 @@ export default function WordSearchScreen() {
       if (!isPractice) {
         saveFound(storageId, nextFound);
         if (nextFound.length === puzzle.words.length) {
-          recordWordSearchComplete(
-            dayNumberForKey(todayKey()),
-            elapsedRef.current,
+          const day = dayNumberForKey(todayKey());
+          recordWordSearchComplete(day, elapsedRef.current);
+          postMyDailyResult(
+            { game: "wordsearch", day, variant: difficulty },
+            { timeSeconds: elapsedRef.current, hints: 0 },
           );
         }
       }
     }
     dragStart.current = null;
     setSelection(null);
-  }, [puzzle, selection, found, isPractice, storageId]);
+  }, [puzzle, selection, found, isPractice, storageId, difficulty]);
 
   const startPractice = useCallback(() => {
     setFound([]);
@@ -337,6 +341,16 @@ export default function WordSearchScreen() {
               ? "All found! Try another practice puzzle."
               : "All found! Come back tomorrow for a new puzzle."}
           </div>
+        )}
+
+        {solved && !isPractice && (
+          <DailyLeaderboard
+            board={{
+              game: "wordsearch",
+              day: dayNumberForKey(todayKey()),
+              variant: difficulty,
+            }}
+          />
         )}
 
         <div
