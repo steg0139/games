@@ -6,7 +6,7 @@ import {
   updateSettings,
   useProfile,
 } from "../../lib/stats/useProfile";
-import DailyLeaderboard from "../../components/DailyLeaderboard";
+import DailyResultsModal from "../../components/DailyResultsModal";
 import { dayNumberForKey, todayKey } from "../../lib/daily";
 import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import type { WordSearchDifficulty } from "../../lib/stats/types";
@@ -118,6 +118,16 @@ export default function WordSearchScreen() {
   }, [isPractice, practiceSeed, difficulty, dayKey]);
 
   const solved = !!puzzle && found.length === puzzle.words.length;
+
+  // Results modal: auto-opens once on first solve; reopenable from the app bar.
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (solved && !isPractice && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      setResultsOpen(true);
+    }
+  }, [solved, isPractice]);
 
   // Live play timer: runs once the puzzle is loaded and until all words found.
   const elapsed = useGameTimer(
@@ -285,6 +295,15 @@ export default function WordSearchScreen() {
         </Link>
         <h1>{title}</h1>
         <span className="status-line">{formatClock(elapsed)}</span>
+        {solved && !isPractice && (
+          <button
+            className="icon-btn"
+            onClick={() => setResultsOpen(true)}
+            aria-label="Show daily results"
+          >
+            Results
+          </button>
+        )}
       </header>
 
       <div className="ws-body">
@@ -341,16 +360,6 @@ export default function WordSearchScreen() {
               ? "All found! Try another practice puzzle."
               : "All found! Come back tomorrow for a new puzzle."}
           </div>
-        )}
-
-        {solved && !isPractice && (
-          <DailyLeaderboard
-            board={{
-              game: "wordsearch",
-              day: dayNumberForKey(todayKey()),
-              variant: difficulty,
-            }}
-          />
         )}
 
         <div
@@ -412,7 +421,28 @@ export default function WordSearchScreen() {
             </li>
           ))}
         </ul>
+
+        {solved && !isPractice && (
+          <button
+            className="btn-primary ws-results-btn"
+            onClick={() => setResultsOpen(true)}
+          >
+            View today's results
+          </button>
+        )}
       </div>
+
+      {!isPractice && (
+        <DailyResultsModal
+          board={{
+            game: "wordsearch",
+            day: dayNumberForKey(todayKey()),
+            variant: difficulty,
+          }}
+          open={resultsOpen}
+          onClose={() => setResultsOpen(false)}
+        />
+      )}
     </div>
   );
 }

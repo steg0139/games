@@ -1,0 +1,96 @@
+/* Daily results modal: a centered dialog over a dimmed backdrop. The standings
+   inside reuse .daily-board styling from DailyLeaderboard.css. */
+
+/* Shared "view results" button the game screens show once a daily is solved. */
+.daily-results-btn,
+.sudoku-results-btn,
+.ws-results-btn,
+.cw-results-btn {
+  display: block;
+  width: 100%;
+  max-width: min(100%, 30rem);
+  margin: 16px auto 0;
+  padding: 12px 16px;
+  font-size: 15px;
+  text-align: center;
+}
+
+.results-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  padding-bottom: calc(20px + var(--safe-bottom));
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(2px);
+  animation: results-fade 0.15s ease-out;
+}
+
+.results-modal {
+  position: relative;
+  width: 100%;
+  max-width: 30rem;
+  max-height: 85dvh;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 8px;
+  animation: results-pop 0.16s ease-out;
+}
+
+/* The embedded board shouldn't add its own card border/margins inside the
+   modal — flatten it so the modal is the single surface. */
+.results-modal .daily-board {
+  background: transparent;
+  border: none;
+  margin: 0;
+  padding: 14px 14px 6px;
+}
+
+.results-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.results-close:active {
+  background: var(--surface-hover);
+}
+
+@keyframes results-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes results-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

@@ -10,7 +10,7 @@ import {
   postMyDailyResult,
   recordCrosswordComplete,
 } from "../../lib/stats/useProfile";
-import DailyLeaderboard from "../../components/DailyLeaderboard";
+import DailyResultsModal from "../../components/DailyResultsModal";
 import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import CrosswordKeyboard, {
   type ActiveClue,
@@ -137,6 +137,9 @@ export default function CrosswordScreen() {
   const [solved, setSolved] = useState(false);
   const [active, setActive] = useState<ActiveClue | null>(null);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
+  // Results modal: auto-opens once on first solve; reopenable from the app bar.
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const autoOpenedRef = useRef(false);
 
   // Live play timer: runs once the puzzle is loaded and until it's solved.
   const elapsed = useGameTimer(
@@ -147,6 +150,14 @@ export default function CrosswordScreen() {
   // the per-second tick recreating the callback.
   const elapsedRef = useRef(elapsed);
   elapsedRef.current = elapsed;
+
+  // Auto-open the results modal once, the first time the daily is solved.
+  useEffect(() => {
+    if (solved && !isPractice && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      setResultsOpen(true);
+    }
+  }, [solved, isPractice]);
 
   const cwRef = useRef<CrosswordProviderImperative>(null);
   const revealed = useRef<Set<string>>(new Set());
@@ -331,12 +342,28 @@ export default function CrosswordScreen() {
           </Link>
           <h1>{isPractice ? "Practice" : "Daily Crossword"}</h1>
           <span className="status-line">{formatClock(elapsed)}</span>
-          <button className="icon-btn" onClick={check} disabled={solved}>
-            Check
-          </button>
-          <button className="icon-btn" onClick={revealLetter} disabled={solved}>
-            Reveal
-          </button>
+          {solved && !isPractice ? (
+            <button
+              className="icon-btn"
+              onClick={() => setResultsOpen(true)}
+              aria-label="Show daily results"
+            >
+              Results
+            </button>
+          ) : (
+            <>
+              <button className="icon-btn" onClick={check} disabled={solved}>
+                Check
+              </button>
+              <button
+                className="icon-btn"
+                onClick={revealLetter}
+                disabled={solved}
+              >
+                Reveal
+              </button>
+            </>
+          )}
         </header>
 
         <div className="cw-body">
@@ -373,15 +400,12 @@ export default function CrosswordScreen() {
           )}
 
           {solved && !isPractice && (
-            <DailyLeaderboard
-              board={{
-                game: "crossword",
-                day: Math.floor(
-                  Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000,
-                ),
-                variant: "-",
-              }}
-            />
+            <button
+              className="btn-primary cw-results-btn"
+              onClick={() => setResultsOpen(true)}
+            >
+              View today's results
+            </button>
           )}
           {checkMsg && !solved && (
             <div className="cw-check" role="status">
@@ -425,6 +449,18 @@ export default function CrosswordScreen() {
           </div>
         )}
       </CrosswordProvider>
+      )}
+
+      {!isPractice && (
+        <DailyResultsModal
+          board={{
+            game: "crossword",
+            day: Math.floor(Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000),
+            variant: "-",
+          }}
+          open={resultsOpen}
+          onClose={() => setResultsOpen(false)}
+        />
       )}
     </div>
   );

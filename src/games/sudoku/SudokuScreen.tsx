@@ -7,7 +7,7 @@ import {
   updateSettings,
   useProfile,
 } from "../../lib/stats/useProfile";
-import DailyLeaderboard from "../../components/DailyLeaderboard";
+import DailyResultsModal from "../../components/DailyResultsModal";
 import { dayNumberForKey, todayKey } from "../../lib/daily";
 import { formatClock, useGameTimer } from "../../lib/useGameTimer";
 import type { SudokuDifficulty } from "../../lib/stats/types";
@@ -112,6 +112,9 @@ export default function SudokuScreen() {
   const [entries, setEntries] = useState<number[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [solved, setSolved] = useState(false);
+  // Results modal: auto-opens on first solve; reopenable via the app-bar button.
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const autoOpenedRef = useRef(false);
 
   const givens = load.status === "ready" ? load.puzzle.givens : null;
   const solution = load.status === "ready" ? load.puzzle.solution : null;
@@ -172,6 +175,15 @@ export default function SudokuScreen() {
       cancelled = true;
     };
   }, [isPractice, practiceSeed, difficulty, dayKey]);
+
+  // Auto-open the results modal once, the first time a daily is solved this
+  // session (not for practice, not re-opened on every re-render/resume).
+  useEffect(() => {
+    if (solved && !isPractice && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      setResultsOpen(true);
+    }
+  }, [solved, isPractice]);
 
   const conflicts = useMemo(() => conflictingCells(entries), [entries]);
 
@@ -337,14 +349,24 @@ export default function SudokuScreen() {
         </Link>
         <h1>{title}</h1>
         <span className="status-line">{formatClock(elapsed)}</span>
-        <button
-          className="icon-btn"
-          onClick={giveHint}
-          disabled={solved}
-          aria-label="Fill in one correct number"
-        >
-          Hint
-        </button>
+        {solved && !isPractice ? (
+          <button
+            className="icon-btn"
+            onClick={() => setResultsOpen(true)}
+            aria-label="Show daily results"
+          >
+            Results
+          </button>
+        ) : (
+          <button
+            className="icon-btn"
+            onClick={giveHint}
+            disabled={solved}
+            aria-label="Fill in one correct number"
+          >
+            Hint
+          </button>
+        )}
       </header>
 
       <div className="sudoku-body">
@@ -397,14 +419,12 @@ export default function SudokuScreen() {
         )}
 
         {solved && !isPractice && (
-          <DailyLeaderboard
-            board={{
-              game: "sudoku",
-              day: dayNumberForKey(todayKey()),
-              variant: difficulty,
-            }}
-            showHints
-          />
+          <button
+            className="btn-primary sudoku-results-btn"
+            onClick={() => setResultsOpen(true)}
+          >
+            View today's results
+          </button>
         )}
 
         <div
@@ -471,6 +491,19 @@ export default function SudokuScreen() {
             ⌫
           </button>
         </div>
+      )}
+
+      {!isPractice && (
+        <DailyResultsModal
+          board={{
+            game: "sudoku",
+            day: dayNumberForKey(todayKey()),
+            variant: difficulty,
+          }}
+          showHints
+          open={resultsOpen}
+          onClose={() => setResultsOpen(false)}
+        />
       )}
     </div>
   );
