@@ -63,6 +63,7 @@ export class CardGamesStack extends cdk.Stack {
         allowOrigins: ["*"],
         allowMethods: [
           CorsHttpMethod.GET,
+          CorsHttpMethod.POST,
           CorsHttpMethod.PUT,
           CorsHttpMethod.DELETE,
           CorsHttpMethod.OPTIONS,
@@ -88,6 +89,20 @@ export class CardGamesStack extends cdk.Stack {
     api.addRoutes({
       path: "/public/{code}",
       methods: [HttpMethod.GET],
+      integration,
+    });
+
+    // Daily competition: owner publishes their result (PUT /daily, first write
+    // wins); anyone batch-reads results for codes they already hold
+    // (POST /daily/results). Same profile lambda handles both.
+    api.addRoutes({
+      path: "/daily",
+      methods: [HttpMethod.PUT],
+      integration,
+    });
+    api.addRoutes({
+      path: "/daily/results",
+      methods: [HttpMethod.POST],
       integration,
     });
 
