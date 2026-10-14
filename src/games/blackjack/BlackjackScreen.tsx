@@ -167,15 +167,17 @@ export default function BlackjackScreen() {
 
   // The dealer cards to render, with per-card faceUp reflecting the staged
   // reveal. During play we render the real hand (up-card + face-down hole).
-  // While settling we render the first `dealerReveal` cards face-up (so the
-  // hole card flips and each draw turns over in turn), keeping the hole card
-  // present-but-face-down until its step so it flips rather than pops in.
+  // While settling, `dealerReveal` is the number of cards turned face-up so
+  // far. We render ONE extra card beyond that (face-down) so the next card —
+  // the hole card or a hit — is already mounted showing its back and then
+  // *flips* on its step, rather than popping in already face-up.
   const dealerCards: typeof state.dealer = (() => {
     if (state.phase !== "settled" || dealerReveal === Infinity) {
       return state.dealer;
     }
-    // Always keep the two original cards mounted; reveal draws as we go.
-    const count = Math.max(2, Math.min(dealerReveal, state.dealer.length));
+    // Mount the revealed cards plus the next one (still face-down). Always keep
+    // at least the two original cards mounted.
+    const count = Math.max(2, Math.min(dealerReveal + 1, state.dealer.length));
     return state.dealer
       .slice(0, count)
       .map((c, i) => ({ ...c, faceUp: i < dealerReveal }));
