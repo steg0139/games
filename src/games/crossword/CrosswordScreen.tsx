@@ -458,6 +458,9 @@ export default function CrosswordScreen() {
             day: Math.floor(Date.parse(`${todayKey()}T00:00:00Z`) / 86_400_000),
             variant: "-",
           }}
+          myResult={
+            solved ? { timeSeconds: elapsedRef.current, hints: 0 } : null
+          }
           open={resultsOpen}
           onClose={() => setResultsOpen(false)}
         />

@@ -501,6 +501,11 @@ export default function SudokuScreen() {
             variant: difficulty,
           }}
           showHints
+          myResult={
+            solved
+              ? { timeSeconds: elapsedRef.current, hints: hintsRef.current }
+              : null
+          }
           open={resultsOpen}
           onClose={() => setResultsOpen(false)}
         />

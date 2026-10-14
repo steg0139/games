@@ -7,6 +7,8 @@ interface Props {
   board: DailyBoardKey;
   /** Show the hints column (sudoku only). */
   showHints?: boolean;
+  /** Optimistic local result for this device (shown before sync completes). */
+  myResult?: { timeSeconds: number; hints: number } | null;
   open: boolean;
   onClose: () => void;
 }
@@ -20,6 +22,7 @@ interface Props {
 export default function DailyResultsModal({
   board,
   showHints = false,
+  myResult = null,
   open,
   onClose,
 }: Props) {
@@ -64,7 +67,7 @@ export default function DailyResultsModal({
         >
           ✕
         </button>
-        <DailyLeaderboard board={board} showHints={showHints} />
+        <DailyLeaderboard board={board} showHints={showHints} myResult={myResult} />
       </div>
     </div>
   );

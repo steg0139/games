@@ -439,6 +439,9 @@ export default function WordSearchScreen() {
             day: dayNumberForKey(todayKey()),
             variant: difficulty,
           }}
+          myResult={
+            solved ? { timeSeconds: elapsedRef.current, hints: 0 } : null
+          }
           open={resultsOpen}
           onClose={() => setResultsOpen(false)}
         />

@@ -24,6 +24,12 @@ interface Props {
   board: DailyBoardKey;
   /** Show the hints column (sudoku only). */
   showHints?: boolean;
+  /**
+   * This device's just-finished result, shown optimistically so you appear in
+   * the standings immediately — before the server round-trip. Replaced by the
+   * synced copy once the fetched results include your code.
+   */
+  myResult?: { timeSeconds: number; hints: number } | null;
 }
 
 /**
@@ -32,7 +38,11 @@ interface Props {
  * late finishers show up. Shows only you and codes already in your friends
  * list — no strangers.
  */
-export default function DailyLeaderboard({ board, showHints = false }: Props) {
+export default function DailyLeaderboard({
+  board,
+  showHints = false,
+  myResult = null,
+}: Props) {
   const profile = useProfile();
   const myCode = profile.friendCode;
   const [results, setResults] = useState<DailyResult[] | null>(null);
@@ -106,8 +116,29 @@ export default function DailyLeaderboard({ board, showHints = false }: Props) {
     );
   }
 
-  const ranked = rankDailyResults(results ?? []);
+  // Merge in an optimistic "my result" when the synced data doesn't yet
+  // include my row, so I show up immediately after finishing. Once the server
+  // returns my row, that real entry is used instead (no duplicate).
+  const serverResults = results ?? [];
+  const serverHasMine = serverResults.some((r) => r.code === myCode);
+  const merged =
+    myResult && myCode && !serverHasMine
+      ? [
+          ...serverResults,
+          {
+            code: myCode,
+            displayName: profile.displayName,
+            timeSeconds: myResult.timeSeconds,
+            hints: myResult.hints,
+            completedAt: Date.now(),
+          },
+        ]
+      : serverResults;
+
+  const ranked = rankDailyResults(merged);
   const hasMine = ranked.some((r) => r.code === myCode);
+  // Whether my row is still the optimistic (unsynced) one.
+  const minePending = !serverHasMine && !!myResult;
   const nameFor = (code: string): string => {
     if (code === myCode) return profile.displayName || "You";
     const f = profile.friends.find((fr) => fr.code === code);
@@ -118,7 +149,7 @@ export default function DailyLeaderboard({ board, showHints = false }: Props) {
     <section className="daily-board">
       <h3>Today's results</h3>
 
-      {loading && results === null ? (
+      {loading && ranked.length === 0 ? (
         <p className="daily-board-empty">Loading standings…</p>
       ) : ranked.length === 0 ? (
         <p className="daily-board-empty">
@@ -126,21 +157,26 @@ export default function DailyLeaderboard({ board, showHints = false }: Props) {
         </p>
       ) : (
         <ol className="daily-board-list">
-          {ranked.map((r, i) => (
-            <li
-              key={r.code}
-              className={`daily-row ${r.code === myCode ? "me" : ""}`}
-            >
-              <span className="daily-rank">{i + 1}</span>
-              <span className="daily-name">{nameFor(r.code)}</span>
-              {showHints && (
-                <span className="daily-hints">
-                  {r.hints === 0 ? "—" : `${r.hints} hint${r.hints === 1 ? "" : "s"}`}
+          {ranked.map((r, i) => {
+            const isMe = r.code === myCode;
+            return (
+              <li key={r.code} className={`daily-row ${isMe ? "me" : ""}`}>
+                <span className="daily-rank">{i + 1}</span>
+                <span className="daily-name">
+                  {nameFor(r.code)}
+                  {isMe && minePending && (
+                    <span className="daily-syncing"> · syncing…</span>
+                  )}
                 </span>
-              )}
-              <span className="daily-time">{fmtTime(r.timeSeconds)}</span>
-            </li>
-          ))}
+                {showHints && (
+                  <span className="daily-hints">
+                    {r.hints === 0 ? "—" : `${r.hints} hint${r.hints === 1 ? "" : "s"}`}
+                  </span>
+                )}
+                <span className="daily-time">{fmtTime(r.timeSeconds)}</span>
+              </li>
+            );
+          })}
         </ol>
       )}
 

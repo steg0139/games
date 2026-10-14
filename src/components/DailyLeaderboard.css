@@ -97,3 +97,11 @@
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
+
+/* Marks the optimistic local row until the server copy syncs in. */
+.daily-syncing {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
