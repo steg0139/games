@@ -31,8 +31,15 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // Test app code plus the pure infra helpers (e.g. daily-key). CDK stacks
+    // and AWS-SDK-coupled handlers aren't unit tests, so infra is otherwise
+    // excluded below.
+    include: [
+      "src/**/*.{test,spec}.{ts,tsx}",
+      "infra/lambda/**/*.{test,spec}.ts",
+    ],
     // Exclude the crossword generator script and node_modules from tests.
-    exclude: ["node_modules", "dist", "infra", "scripts"],
+    exclude: ["node_modules", "dist", "scripts"],
   },
   plugins: [
     react(),
